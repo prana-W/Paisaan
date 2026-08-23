@@ -50,6 +50,24 @@ def get_session(db: DBSession, thread_id: str) -> SessionModel | None:
     return db.query(SessionModel).filter(SessionModel.thread_id == thread_id).first()
 
 
+def get_sessions(db: DBSession, user_id: str | None = None) -> list[SessionModel]:
+    query = db.query(SessionModel)
+    if user_id:
+        query = query.filter(SessionModel.user_id == user_id)
+    return query.order_by(SessionModel.created_at.desc()).all()
+
+
+def delete_session(db: DBSession, thread_id: str) -> bool:
+    session = db.query(SessionModel).filter(SessionModel.thread_id == thread_id).first()
+    if session:
+        # Delete associated holdings
+        db.query(Holding).filter(Holding.thread_id == thread_id).delete()
+        db.delete(session)
+        db.commit()
+        return True
+    return False
+
+
 def update_session_status(db: DBSession, thread_id: str, status: str) -> None:
     session = get_session(db, thread_id)
     if session:

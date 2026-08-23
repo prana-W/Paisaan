@@ -5,10 +5,10 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.agent.graph import get_graph
 from app.db.session import get_db
-from app.db.crud import get_or_create_user, create_session, get_session, update_session_status
+from app.db.crud import get_or_create_user, create_session, get_session, update_session_status, get_sessions, delete_session
 from app.schemas.profile import (
     CreateSessionRequest, MessageRequest, ResumeRequest,
-    SessionResponse, ResumeResponse, SessionStateResponse,
+    SessionResponse, ResumeResponse, SessionStateResponse, SessionSummary,
 )
 from app.core.logging import get_logger
 
@@ -35,6 +35,11 @@ def _stream_until_interrupt(graph, thread_id: str, input_payload):
         status = "running"
 
     return status, interrupt_payload, state
+
+
+@router.get("/sessions", response_model=list[SessionSummary])
+def list_sessions(user_id: str | None = None, db: DBSession = Depends(get_db)):
+    return get_sessions(db, user_id)
 
 
 @router.get("/session/{session_id}", response_model=SessionStateResponse)
@@ -71,6 +76,33 @@ def get_session_state(session_id: str, db: DBSession = Depends(get_db)):
         profile=state.values.get("profile", {}),
         pending_question=interrupt_payload,
     )
+
+
+import sqlite3
+from app.core.config import get_settings
+
+def _delete_checkpoints(thread_id: str):
+    settings = get_settings()
+    try:
+        conn = sqlite3.connect(settings.checkpoint_db_path)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
+        cursor.execute("DELETE FROM checkpoint_writes WHERE thread_id = ?", (thread_id,))
+        cursor.execute("DELETE FROM checkpoint_blobs WHERE thread_id = ?", (thread_id,))
+        cursor.execute("DELETE FROM checkpoint_reads WHERE thread_id = ?", (thread_id,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Failed to clear checkpoints for thread_id=%s: %s", thread_id, e)
+
+
+@router.delete("/session/{session_id}")
+def delete_session_endpoint(session_id: str, db: DBSession = Depends(get_db)):
+    success = delete_session(db, session_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Session not found")
+    _delete_checkpoints(session_id)
+    return {"status": "success", "message": "Session deleted"}
 
 
 @router.post("/session", response_model=SessionResponse)

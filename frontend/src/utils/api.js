@@ -25,6 +25,11 @@ async function request(path, options = {}) {
     return res.json();
 }
 
+export async function getSessions(userId = null) {
+    const query = userId ? `?user_id=${userId}` : '';
+    return request(`/sessions${query}`);
+}
+
 export async function getSessionState(threadId) {
     return request(`/session/${threadId}`);
 }

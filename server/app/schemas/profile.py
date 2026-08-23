@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, field_validator
 
 
@@ -44,3 +45,13 @@ class SessionStateResponse(BaseModel):
     messages: list = []
     profile: dict = {}
     pending_question: dict | None = None
+
+
+class SessionSummary(BaseModel):
+    thread_id: str
+    user_id: str
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
