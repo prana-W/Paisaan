@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     database_url: str
 
     # LangGraph checkpointer
-    checkpoint_db_path: str
+    checkpoint_db_url: str
 
     # Server
     port: int

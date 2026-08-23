@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session as DBSession
 
 from app.agent.graph import get_graph
-from app.agent.checkpointer import graph_lock
 from app.db.session import get_db
 from app.db.crud import get_or_create_user, create_session, get_session, update_session_status, get_sessions, delete_session
 from app.schemas.profile import (
@@ -82,20 +81,18 @@ def get_session_state(session_id: str, db: DBSession = Depends(get_db)):
     )
 
 
-import sqlite3
+import psycopg
 from app.core.config import get_settings
 
 def _delete_checkpoints(thread_id: str):
     settings = get_settings()
     try:
-        conn = sqlite3.connect(settings.checkpoint_db_path)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
-        cursor.execute("DELETE FROM checkpoint_writes WHERE thread_id = ?", (thread_id,))
-        cursor.execute("DELETE FROM checkpoint_blobs WHERE thread_id = ?", (thread_id,))
-        cursor.execute("DELETE FROM checkpoint_reads WHERE thread_id = ?", (thread_id,))
-        conn.commit()
-        conn.close()
+        with psycopg.connect(settings.checkpoint_db_url) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM checkpoints WHERE thread_id = %s", (thread_id,))
+                cursor.execute("DELETE FROM checkpoint_writes WHERE thread_id = %s", (thread_id,))
+                cursor.execute("DELETE FROM checkpoint_blobs WHERE thread_id = %s", (thread_id,))
+            conn.commit()
     except Exception as e:
         logger.warning("Failed to clear checkpoints for thread_id=%s: %s", thread_id, e)
 
@@ -130,8 +127,7 @@ def create_new_session(body: CreateSessionRequest, db: DBSession = Depends(get_d
         "transaction_id": None,
     }
 
-    with graph_lock:
-        status, payload, _ = _stream_until_interrupt(graph, thread_id, initial_state)
+    status, payload, _ = _stream_until_interrupt(graph, thread_id, initial_state)
     update_session_status(db, thread_id, status)
 
     message = payload.get("text") if isinstance(payload, dict) else None
@@ -164,8 +160,7 @@ def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeRespon
     logger.info("Resuming session thread_id=%s answer=%r", session_id, answer)
 
     from langgraph.types import Command
-    with graph_lock:
-        status, payload, _ = _stream_until_interrupt(graph, session_id, Command(resume=answer))
+    status, payload, _ = _stream_until_interrupt(graph, session_id, Command(resume=answer))
     update_session_status(db, session_id, status)
 
     message = payload.get("text") if isinstance(payload, dict) else "Session complete. ✅"
