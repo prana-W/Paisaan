@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useSession } from '@/hooks/useSession';
 import { getSessions, deleteSession } from '@/utils/api';
 import {
@@ -56,7 +58,15 @@ function ChatBubble({ message }) {
                         : { background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--foreground)' }
                     }
                 >
-                    {message.content}
+                    {isAssistant ? (
+                        <div className="markdown-body">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {message.content}
+                            </ReactMarkdown>
+                        </div>
+                    ) : (
+                        message.content
+                    )}
                 </div>
             </div>
         </div>
