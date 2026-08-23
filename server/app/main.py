@@ -1,14 +1,3 @@
-"""
-FastAPI application entry point.
-
-Startup sequence (lifespan):
-  1. setup_logging()
-  2. init_db()           — creates SQLite tables
-  3. init_checkpointer() — opens SqliteSaver connection
-  4. init_graph()        — compiles LangGraph graph with checkpointer
-
-All four steps must complete before any request is served.
-"""
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
@@ -36,26 +25,20 @@ async def lifespan(app: FastAPI):
 
     logger.info("═══ Paisaan server starting ═══")
 
-    # 1. DB tables
     logger.info("Initialising database...")
     init_db()
 
-    # 2. Checkpointer (state persistence across requests)
     logger.info("Initialising LangGraph checkpointer...")
     checkpointer = init_checkpointer()
 
-    # 3. Compile agent graph
     logger.info("Compiling agent graph...")
     init_graph(checkpointer)
 
     logger.info("═══ Paisaan server ready on port %s ═══", get_settings().port)
 
-    yield  # ← application runs here
+    yield
 
     logger.info("═══ Paisaan server shutting down ═══")
-
-
-# ── App ───────────────────────────────────────────────────────────────────────
 
 settings = get_settings()
 
@@ -66,7 +49,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception occurred during request: %s", str(exc), exc_info=True)
@@ -74,8 +56,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": "Internal Server Error", "error": str(exc)},
     )
-
-# ── CORS ──────────────────────────────────────────────────────────────────────
 
 app.add_middleware(
     CORSMiddleware,
@@ -89,12 +69,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Routers ───────────────────────────────────────────────────────────────────
 
 app.include_router(session_router, prefix="/api/v1", tags=["session"])
 
-
-# ── Health ────────────────────────────────────────────────────────────────────
 
 @app.get("/health", tags=["meta"])
 def health():

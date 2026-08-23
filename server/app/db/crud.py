@@ -1,8 +1,3 @@
-"""
-CRUD helpers for all four DB tables.
-Phase 0: create_user, create_session, get_session are implemented.
-All others are stubbed and will be filled in their respective phases.
-"""
 import uuid
 from datetime import datetime
 
@@ -25,8 +20,6 @@ def get_or_create_user(db: DBSession, user_id: str | None = None) -> User:
     db.refresh(user)
     return user
 
-
-# ── Sessions ─────────────────────────────────────────────────────────────────
 
 def create_session(db: DBSession, user_id: str, thread_id: str) -> SessionModel:
     """Create a new planning session linked to a LangGraph thread_id."""
