@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     # LLM
     google_api_key: str
+    google_llm_model: str = "gemini-3.5-flash"
 
     # Razorpay (test-mode)
     razorpay_key_id: str

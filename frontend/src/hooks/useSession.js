@@ -1,21 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
-import { createSession, resumeSession } from '@/utils/api';
+import { createSession, resumeSession, getSessionState } from '@/utils/api';
 
-/**
- * useSession — manages the full lifecycle of a Paisaan chat session.
- *
- * State:
- *   messages   — [{role: 'assistant'|'user', content: string, id: string}]
- *   threadId   — current LangGraph thread_id (persisted to sessionStorage)
- *   userId     — current user id
- *   status     — 'idle' | 'loading' | 'interrupted' | 'complete' | 'error'
- *   error      — error message string or null
- *
- * Actions:
- *   startSession(userId?) — POST /session, set threadId, add first question
- *   sendAnswer(text)      — POST /session/{id}/resume, add reply + next question
- *   resetSession()        — clear everything and start fresh
- */
 export function useSession() {
     const [messages, setMessages] = useState([]);
     const [threadId, setThreadId] = useState(
@@ -24,43 +9,35 @@ export function useSession() {
     const [userId, setUserId] = useState(
         () => sessionStorage.getItem('paisaan_user_id') || null
     );
+    const [profile, setProfile] = useState({});
     const [status, setStatus] = useState('idle');
     const [error, setError] = useState(null);
 
-    // Guard against duplicate calls
     const loading = useRef(false);
 
     const addMessage = useCallback((role, content) => {
-        setMessages(prev => [
-            ...prev,
-            { id: `${Date.now()}-${Math.random()}`, role, content },
-        ]);
+        setMessages(prev => [...prev, { id: `${Date.now()}-${Math.random()}`, role, content }]);
     }, []);
 
-    /**
-     * Start a new session. Calls POST /session and adds the first question.
-     */
-    const startSession = useCallback(async (existingUserId = null) => {
+    const _persist = (tid, uid) => {
+        sessionStorage.setItem('paisaan_thread_id', tid);
+        sessionStorage.setItem('paisaan_user_id', uid);
+    };
+
+    const startSession = useCallback(async (customThreadId = null) => {
         if (loading.current) return;
         loading.current = true;
         setStatus('loading');
         setError(null);
         setMessages([]);
+        setProfile({});
 
         try {
-            const data = await createSession(existingUserId || userId);
-
-            // Persist IDs so they survive a page refresh
-            sessionStorage.setItem('paisaan_thread_id', data.thread_id);
-            sessionStorage.setItem('paisaan_user_id', data.user_id);
-
+            const data = await createSession(userId, customThreadId || null);
+            _persist(data.thread_id, data.user_id);
             setThreadId(data.thread_id);
             setUserId(data.user_id);
-
-            if (data.message) {
-                addMessage('assistant', data.message);
-            }
-
+            if (data.message) addMessage('assistant', data.message);
             setStatus(data.status);
         } catch (err) {
             setError(err.message || 'Failed to start session');
@@ -70,44 +47,79 @@ export function useSession() {
         }
     }, [userId, addMessage]);
 
-    /**
-     * Send the user's answer to the current interrupted question.
-     * Adds user message, calls /resume, adds next assistant message.
-     */
+    const loadSession = useCallback(async (customThreadId) => {
+        if (loading.current || !customThreadId) return;
+        loading.current = true;
+        setStatus('loading');
+        setError(null);
+        setMessages([]);
+        setProfile({});
+
+        try {
+            const data = await getSessionState(customThreadId);
+
+            if (!data.exists) {
+                const startData = await createSession(userId, customThreadId);
+                _persist(startData.thread_id, startData.user_id);
+                setThreadId(startData.thread_id);
+                setUserId(startData.user_id);
+                if (startData.message) addMessage('assistant', startData.message);
+                setStatus(startData.status);
+                return;
+            }
+
+            _persist(customThreadId, data.user_id || '');
+            setThreadId(customThreadId);
+            setUserId(data.user_id);
+
+            const restored = (data.messages || []).map((m, i) => ({
+                id: `restored-${i}`,
+                role: m.role,
+                content: m.content,
+            }));
+            setMessages(restored);
+            setProfile(data.profile || {});
+
+            if (data.pending_question) {
+                addMessage('assistant', data.pending_question.text);
+            }
+
+            setStatus(data.status || 'interrupted');
+        } catch (err) {
+            setError(err.message || 'Failed to load session');
+            setStatus('error');
+        } finally {
+            loading.current = false;
+        }
+    }, [userId, addMessage]);
+
     const sendAnswer = useCallback(async (text) => {
         if (!threadId || loading.current || !text.trim()) return;
         loading.current = true;
-
         addMessage('user', text);
         setStatus('loading');
         setError(null);
 
         try {
             const data = await resumeSession(threadId, text);
-
-            if (data.message) {
-                addMessage('assistant', data.message);
-            }
-
+            if (data.message) addMessage('assistant', data.message);
             setStatus(data.status);
         } catch (err) {
             setError(err.message || 'Something went wrong. Please try again.');
             setStatus('error');
-            // Remove the optimistically added user message on error
             setMessages(prev => prev.slice(0, -1));
         } finally {
             loading.current = false;
         }
     }, [threadId, addMessage]);
 
-    /**
-     * Clear everything and reset to idle. User can start a new session.
-     */
     const resetSession = useCallback(() => {
         sessionStorage.removeItem('paisaan_thread_id');
         sessionStorage.removeItem('paisaan_user_id');
         setMessages([]);
         setThreadId(null);
+        setUserId(null);
+        setProfile({});
         setStatus('idle');
         setError(null);
     }, []);
@@ -116,12 +128,14 @@ export function useSession() {
         messages,
         threadId,
         userId,
+        profile,
         status,
         error,
         isLoading: status === 'loading',
         isComplete: status === 'complete',
         isInterrupted: status === 'interrupted',
         startSession,
+        loadSession,
         sendAnswer,
         resetSession,
     };

@@ -3,48 +3,39 @@ import { TrendingUp, BarChart2, MessageSquare } from 'lucide-react';
 
 const Header = () => {
     return (
-        <header className="glass border-b border-border flex-shrink-0 z-10">
+        <header className="border-b flex-shrink-0 z-10"
+            style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
             <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-
-                {/* Brand */}
-                <NavLink to="/" className="flex items-center gap-2 group" id="header-brand">
-                    <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-lg group-hover:shadow-primary/30 transition-shadow">
-                        <TrendingUp size={16} className="text-primary-foreground" />
+                <NavLink to="/" id="header-brand" className="flex items-center gap-2 group">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-lg"
+                        style={{ background: 'var(--primary)' }}>
+                        <TrendingUp size={16} style={{ color: 'var(--primary-foreground)' }} />
                     </div>
                     <span className="font-bold text-lg gradient-text tracking-tight">Paisaan</span>
                 </NavLink>
 
-                {/* Nav */}
                 <nav className="flex items-center gap-1" aria-label="Main navigation">
-                    <NavLink
-                        id="nav-chat"
-                        to="/"
-                        end
-                        className={({ isActive }) =>
-                            `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                isActive
-                                    ? 'bg-primary/10 text-primary'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                            }`
-                        }
-                    >
-                        <MessageSquare size={14} />
-                        Chat
-                    </NavLink>
-                    <NavLink
-                        id="nav-portfolio"
-                        to="/portfolio"
-                        className={({ isActive }) =>
-                            `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                isActive
-                                    ? 'bg-primary/10 text-primary'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                            }`
-                        }
-                    >
-                        <BarChart2 size={14} />
-                        Portfolio
-                    </NavLink>
+                    {[
+                        { to: '/', id: 'nav-chat', icon: MessageSquare, label: 'Chat', end: true },
+                        { to: '/portfolio', id: 'nav-portfolio', icon: BarChart2, label: 'Portfolio' },
+                    ].map(({ to, id, icon: Icon, label, end }) => (
+                        <NavLink
+                            key={id}
+                            id={id}
+                            to={to}
+                            end={end}
+                            className={({ isActive }) =>
+                                `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isActive ? 'active-nav' : ''}`
+                            }
+                            style={({ isActive }) => ({
+                                background: isActive ? 'var(--primary)/10' : 'transparent',
+                                color: isActive ? 'var(--primary)' : 'var(--muted-foreground)',
+                            })}
+                        >
+                            <Icon size={14} />
+                            {label}
+                        </NavLink>
+                    ))}
                 </nav>
             </div>
         </header>

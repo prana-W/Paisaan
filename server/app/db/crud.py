@@ -30,6 +30,9 @@ def get_or_create_user(db: DBSession, user_id: str | None = None) -> User:
 
 def create_session(db: DBSession, user_id: str, thread_id: str) -> SessionModel:
     """Create a new planning session linked to a LangGraph thread_id."""
+    existing = get_session(db, thread_id)
+    if existing:
+        return existing
     session = SessionModel(
         id=thread_id,           # use thread_id as session pk for simplicity
         user_id=user_id,

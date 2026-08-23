@@ -3,19 +3,22 @@ AgentState and all sub-models. This is the single source of truth for
 graph state across ALL phases. API schemas import from here — never the
 other way around.
 """
-from typing import Annotated
+from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 from langgraph.graph.message import add_messages
 
 
 class Profile(BaseModel):
-    """Built progressively during the Intake subgraph (Phase 1)."""
-    income: float | None = None
-    expenses: float | None = None
-    existing_savings: float | None = None
-    dependents: int | None = None
-    goal: str | None = None
-    risk_signals: list[str] = Field(default_factory=list)
+    age: int | None = Field(default=None, description="Age in years", json_schema_extra={"intake_required": True})
+    income: float | None = Field(default=None, description="Monthly income in ₹", json_schema_extra={"intake_required": True})
+    expenses: float | None = Field(default=None, description="Monthly expenses in ₹", json_schema_extra={"intake_required": True})
+    existing_savings: float | None = Field(default=None, description="Total existing savings/investments in ₹", json_schema_extra={"intake_required": True})
+    dependents: int | None = Field(default=None, description="Number of financial dependents", json_schema_extra={"intake_required": True})
+    investable_amount: float | None = Field(default=None, description="Lump sum amount available to invest now in ₹", json_schema_extra={"intake_required": True})
+    risk_tolerance: Literal["low", "medium", "high"] | None = Field(default=None, description="Risk tolerance — low, medium, or high", json_schema_extra={"intake_required": True})
+    goal: str | None = Field(default=None, description="Primary investment goal", json_schema_extra={"intake_required": True})
+    risk_signals: list[str] = Field(default_factory=list, description="Raw risk concerns noted during intake")
+    questions_asked: list[str] = Field(default_factory=list, description="Questions already asked, to avoid repetition")
     intake_complete: bool = False
 
 
@@ -44,7 +47,7 @@ class AgentState(BaseModel):
     """
     thread_id: str
     profile: Profile = Field(default_factory=Profile)
-    horizon: str | None = None          # "short" | "medium" | "long"
+    horizon: str | None = None       
     market: MarketSnapshot = Field(default_factory=MarketSnapshot)
     draft_allocation: list[AllocationLine] = Field(default_factory=list)
     confirmed: bool = False

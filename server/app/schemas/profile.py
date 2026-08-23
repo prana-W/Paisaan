@@ -1,44 +1,46 @@
-"""
-Pydantic schemas for the /session API surface.
-These are the request/response shapes — NOT the internal graph state.
-"""
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
-
-# ── Request bodies ─────────────────────────────────────────────────────────────
 
 class CreateSessionRequest(BaseModel):
-    """Body for POST /session. user_id is optional for anonymous sessions."""
     user_id: str | None = None
+    thread_id: str | None = None
+
+    @field_validator("thread_id")
+    @classmethod
+    def no_spaces(cls, v):
+        if v and " " in v:
+            raise ValueError("thread_id must not contain spaces")
+        return v
 
 
 class MessageRequest(BaseModel):
-    """Body for POST /session/{id}/message (intake chat turn)."""
     content: str
 
 
 class ResumeRequest(BaseModel):
-    """
-    Body for POST /session/{id}/resume.
-    answer is the user's reply to whatever interrupt() asked.
-    """
     answer: str
 
 
-# ── Response bodies ────────────────────────────────────────────────────────────
-
 class SessionResponse(BaseModel):
-    """Returned by POST /session after graph starts and hits first interrupt."""
     thread_id: str
     user_id: str
-    status: str          # "interrupted" | "running" | "complete"
-    message: str | None = None   # The question or message for the user
-    payload: dict | None = None  # Full interrupt payload if needed by frontend
+    status: str
+    message: str | None = None
+    payload: dict | None = None
 
 
 class ResumeResponse(BaseModel):
-    """Returned by POST /session/{id}/resume after graph continues."""
     thread_id: str
     status: str
     message: str | None = None
     payload: dict | None = None
+
+
+class SessionStateResponse(BaseModel):
+    exists: bool
+    thread_id: str
+    user_id: str | None = None
+    status: str | None = None
+    messages: list = []
+    profile: dict = {}
+    pending_question: dict | None = None
