@@ -1,6 +1,7 @@
 # Paisaan Development Log
 
-## August 23, 2026 — Phase 2: Market Data Tools
+## August 23, 2026 — Phase 2 & Subgraph Refactor
+- Refactored the core LangGraph architecture to use nested subgraphs, starting by extracting the `intake_node` loop into its own encapsulated `intake_subgraph.py`.
 - Implemented the Mutual Fund NAV fetcher tool using `mfapi.in`.
 - Implemented the Stock Price tool using `yfinance`, with auto `.NS` appending for Indian stocks.
 - Implemented the Gold/Silver price fetcher using `yfinance` to fetch NSE Bullion ETF prices (`GOLDBEES.NS` and `SILVERBEES.NS`) as reliable, free, and correlated proxies for domestic bullion.
