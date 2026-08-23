@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSession } from '@/hooks/useSession';
-import { getSessions } from '@/utils/api';
+import { getSessions, deleteSession } from '@/utils/api';
 import {
     Send, RotateCcw, TrendingUp, Loader2, AlertCircle,
-    CheckCircle2, ArrowRight, MessageSquare, Plus, Menu, X, Bot, User
+    CheckCircle2, ArrowRight, MessageSquare, Plus, Menu, X, Bot, User, Trash2
 } from 'lucide-react';
 
 function TypingIndicator() {
@@ -145,7 +145,17 @@ export default function Chat() {
 
     const [input, setInput] = useState('');
     const [sessionsList, setSessionsList] = useState([]);
-    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(() => {
+        const saved = localStorage.getItem('paisaan_sidebar_open');
+        return saved !== null ? JSON.parse(saved) : window.innerWidth >= 1024;
+    });
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+    const [notification, setNotification] = useState(null);
+
+    const showNotification = (message, type = 'success') => {
+        setNotification({ message, type });
+        setTimeout(() => setNotification(null), 3000);
+    };
 
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
@@ -158,6 +168,10 @@ export default function Chat() {
             console.error('Failed to fetch sessions:', err);
         }
     };
+
+    useEffect(() => {
+        localStorage.setItem('paisaan_sidebar_open', JSON.stringify(sidebarOpen));
+    }, [sidebarOpen]);
 
     useEffect(() => {
         fetchSessions();
@@ -174,13 +188,21 @@ export default function Chat() {
         }
     }, [loadSession, status]);
 
+    useEffect(() => {
+        const handleToggle = () => setSidebarOpen(prev => !prev);
+        window.addEventListener('toggle-sidebar', handleToggle);
+        return () => window.removeEventListener('toggle-sidebar', handleToggle);
+    }, []);
+
     const handleStart = (customId) => {
         if (customId) {
             loadSession(customId);
         } else {
             startSession();
         }
-        setSidebarOpen(false);
+        if (window.innerWidth < 1024) {
+            setSidebarOpen(false);
+        }
     };
 
     const handleSubmit = (e) => {
@@ -193,12 +215,49 @@ export default function Chat() {
 
     const handleNewChat = () => {
         resetSession();
-        setSidebarOpen(false);
+        if (window.innerWidth < 1024) {
+            setSidebarOpen(false);
+        }
     };
 
     const handleSelectSession = (tid) => {
         loadSession(tid);
-        setSidebarOpen(false);
+        if (window.innerWidth < 1024) {
+            setSidebarOpen(false);
+        }
+    };
+
+    const handleDeleteSession = async (e, tid) => {
+        e.stopPropagation();
+        setConfirmModal({
+            isOpen: true,
+            title: 'Delete Conversation',
+            message: `Are you sure you want to delete this conversation? This will permanently erase the thread history.`,
+            onConfirm: async () => {
+                const originalList = [...sessionsList];
+                
+                // Optimistic UI updates
+                setSessionsList(prev => prev.filter(s => s.thread_id !== tid));
+                let activeSessionDeleted = false;
+                if (threadId === tid) {
+                    activeSessionDeleted = true;
+                    handleNewChat();
+                }
+
+                try {
+                    await deleteSession(tid);
+                    showNotification('Conversation deleted successfully', 'success');
+                } catch (err) {
+                    console.error('Failed to delete session:', err);
+                    showNotification('Failed to delete conversation', 'error');
+                    // Rollback on failure
+                    setSessionsList(originalList);
+                    if (activeSessionDeleted) {
+                        loadSession(tid);
+                    }
+                }
+            }
+        });
     };
 
     return (
@@ -213,21 +272,22 @@ export default function Chat() {
 
             {/* Left Sidebar */}
             <div className={`
-                absolute inset-y-0 left-0 z-40 w-64 bg-[var(--card)] border-r border-[var(--border)] flex flex-col transition-transform duration-300 ease-in-out lg:static lg:translate-x-0
-                ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+                absolute inset-y-0 left-0 z-40 bg-[var(--card)] flex flex-col transition-all duration-300 ease-in-out lg:static
+                ${sidebarOpen 
+                    ? 'translate-x-0 w-64 border-r border-[var(--border)] opacity-100' 
+                    : '-translate-x-full lg:translate-x-0 lg:w-0 lg:opacity-0 lg:pointer-events-none lg:border-r-0 overflow-hidden'
+                }
             `}>
                 {/* Sidebar Header */}
                 <div className="h-14 border-b border-[var(--border)] px-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-[var(--primary)] flex items-center justify-center">
-                            <TrendingUp size={16} style={{ color: 'var(--primary-foreground)' }} />
-                        </div>
-                        <span className="font-bold text-sm text-[var(--foreground)] tracking-wide">PAISAAN</span>
-                    </div>
-                    {/* Mobile Close Button */}
+                    <span className="text-[10px] font-bold text-[var(--muted-foreground)] uppercase tracking-wider pl-1">
+                        History
+                    </span>
+                    {/* Close Button */}
                     <button 
-                        className="lg:hidden p-1.5 rounded-lg hover:bg-[var(--surface-2)] text-[var(--muted-foreground)]"
+                        className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] text-[var(--muted-foreground)]"
                         onClick={() => setSidebarOpen(false)}
+                        title="Close Sidebar"
                     >
                         <X size={16} />
                     </button>
@@ -259,20 +319,31 @@ export default function Chat() {
                             sessionsList.map(session => {
                                 const isActive = threadId === session.thread_id;
                                 return (
-                                    <button
+                                    <div
                                         key={session.thread_id}
-                                        onClick={() => handleSelectSession(session.thread_id)}
                                         className={`
-                                            flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-xs font-medium text-left truncate transition-colors border
+                                            group flex items-center justify-between w-full rounded-xl text-xs font-medium transition-colors border
                                             ${isActive 
                                                 ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/20' 
                                                 : 'bg-transparent border-transparent hover:bg-[var(--surface-2)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
                                             }
                                         `}
                                     >
-                                        <MessageSquare size={13} className="flex-shrink-0" />
-                                        <span className="truncate flex-1">{session.thread_id}</span>
-                                    </button>
+                                        <button
+                                            onClick={() => handleSelectSession(session.thread_id)}
+                                            className="flex items-center gap-2.5 flex-1 px-3 py-2.5 text-left truncate min-w-0"
+                                        >
+                                            <MessageSquare size={13} className="flex-shrink-0" />
+                                            <span className="truncate flex-1">{session.thread_id}</span>
+                                        </button>
+                                        <button
+                                            onClick={(e) => handleDeleteSession(e, session.thread_id)}
+                                            className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 p-1.5 mr-1.5 rounded-lg hover:bg-red-500/10 text-red-500/80 hover:text-red-500 transition-opacity"
+                                            title="Delete Session"
+                                        >
+                                            <Trash2 size={13} />
+                                        </button>
+                                    </div>
                                 );
                             })
                         )}
@@ -282,42 +353,6 @@ export default function Chat() {
 
             {/* Right Main Container */}
             <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-[var(--background)]">
-                {/* Header Bar */}
-                <div className="h-14 border-b border-[var(--border)] px-4 flex items-center justify-between bg-[var(--card)] flex-shrink-0">
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => setSidebarOpen(true)}
-                            className="lg:hidden p-1.5 rounded-lg hover:bg-[var(--surface-2)] text-[var(--muted-foreground)] flex-shrink-0"
-                        >
-                            <Menu size={18} />
-                        </button>
-                        {threadId && (
-                            <div className="flex items-center gap-2.5">
-                                <div className="relative flex-shrink-0">
-                                    <div className="w-2 h-2 rounded-full" style={{ background: isComplete ? 'var(--gain)' : 'var(--primary)' }} />
-                                    {!isComplete && (
-                                        <div className="absolute inset-0 w-2 h-2 rounded-full animate-ping"
-                                            style={{ background: 'var(--primary)', opacity: 0.4 }} />
-                                    )}
-                                </div>
-                                <span className="text-xs font-medium text-[var(--muted-foreground)] truncate max-w-[200px] sm:max-w-none">
-                                    Session: {threadId}
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                    {threadId && (
-                        <button
-                            onClick={handleNewChat}
-                            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
-                            style={{ color: 'var(--muted-foreground)' }}
-                        >
-                            <RotateCcw size={12} />
-                            Reset Chat
-                        </button>
-                    )}
-                </div>
-
                 {/* Main Content Pane */}
                 <div className="flex-1 overflow-hidden flex flex-col min-h-0">
                     {status === 'idle' || !threadId ? (
@@ -338,16 +373,14 @@ export default function Chat() {
                                     {isLoading && messages.length > 0 && <TypingIndicator />}
 
                                     {error && (
-                                        <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm animate-bubble-in"
-                                            style={{ background: 'var(--destructive)/10', color: 'var(--destructive)' }}>
+                                        <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm animate-bubble-in bg-destructive/10 text-destructive">
                                             <AlertCircle size={15} className="flex-shrink-0" />
                                             {error}
                                         </div>
                                     )}
 
                                     {isComplete && (
-                                        <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm animate-bubble-in"
-                                            style={{ background: 'var(--gain)/10', color: 'var(--gain)' }}>
+                                        <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm animate-bubble-in bg-gain/10 text-gain">
                                             <CheckCircle2 size={15} className="flex-shrink-0" />
                                             Profile complete — your investment plan is being prepared.
                                         </div>
@@ -400,6 +433,47 @@ export default function Chat() {
                     )}
                 </div>
             </div>
+
+            {/* Custom Confirmation Modal */}
+            {confirmModal.isOpen && (
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4">
+                    <div className="glass max-w-sm w-full p-6 rounded-2xl shadow-xl space-y-5 border border-[var(--border)] animate-bubble-in">
+                        <div className="space-y-2">
+                            <h3 className="font-bold text-sm text-[var(--foreground)]">{confirmModal.title}</h3>
+                            <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">{confirmModal.message}</p>
+                        </div>
+                        <div className="flex gap-2.5 justify-end">
+                            <button
+                                onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                                className="px-3.5 py-2 rounded-xl text-xs font-semibold hover:bg-[var(--surface-2)] transition-colors border border-[var(--border)] text-[var(--foreground)]"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    confirmModal.onConfirm();
+                                    setConfirmModal({ ...confirmModal, isOpen: false });
+                                }}
+                                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-700 text-white transition-colors"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Toast Notifications */}
+            {notification && (
+                <div className="absolute bottom-4 right-4 z-50 glass border border-[var(--border)] px-4 py-3 rounded-xl shadow-lg flex items-center gap-2.5 animate-bubble-in text-xs font-semibold">
+                    {notification.type === 'error' ? (
+                        <AlertCircle size={15} className="text-red-500 flex-shrink-0" />
+                    ) : (
+                        <CheckCircle2 size={15} className="text-emerald-500 flex-shrink-0" />
+                    )}
+                    <span className="text-[var(--foreground)]">{notification.message}</span>
+                </div>
+            )}
         </div>
     );
 }

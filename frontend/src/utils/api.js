@@ -34,6 +34,12 @@ export async function getSessionState(threadId) {
     return request(`/session/${threadId}`);
 }
 
+export async function deleteSession(threadId) {
+    return request(`/session/${threadId}`, {
+        method: 'DELETE',
+    });
+}
+
 export async function createSession(userId = null, threadId = null) {
     return request('/session', {
         method: 'POST',
