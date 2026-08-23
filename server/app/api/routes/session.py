@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session as DBSession
 
 from app.agent.graph import get_graph
+from app.agent.checkpointer import graph_lock
 from app.db.session import get_db
 from app.db.crud import get_or_create_user, create_session, get_session, update_session_status, get_sessions, delete_session
 from app.schemas.profile import (
@@ -58,6 +59,9 @@ def get_session_state(session_id: str, db: DBSession = Depends(get_db)):
             interrupt_payload = task.interrupts[0].value
             status = "interrupted"
             break
+
+    if state.next and not interrupt_payload:
+        status = "running"
 
     db_session = get_session(db, session_id)
     user_id = db_session.user_id if db_session else None
@@ -126,7 +130,8 @@ def create_new_session(body: CreateSessionRequest, db: DBSession = Depends(get_d
         "transaction_id": None,
     }
 
-    status, payload, _ = _stream_until_interrupt(graph, thread_id, initial_state)
+    with graph_lock:
+        status, payload, _ = _stream_until_interrupt(graph, thread_id, initial_state)
     update_session_status(db, thread_id, status)
 
     message = payload.get("text") if isinstance(payload, dict) else None
@@ -159,7 +164,8 @@ def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeRespon
     logger.info("Resuming session thread_id=%s answer=%r", session_id, answer)
 
     from langgraph.types import Command
-    status, payload, _ = _stream_until_interrupt(graph, session_id, Command(resume=answer))
+    with graph_lock:
+        status, payload, _ = _stream_until_interrupt(graph, session_id, Command(resume=answer))
     update_session_status(db, session_id, status)
 
     message = payload.get("text") if isinstance(payload, dict) else "Session complete. ✅"

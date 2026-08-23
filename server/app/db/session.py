@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
 from collections.abc import Generator
 from app.core.config import get_settings
@@ -8,9 +8,17 @@ settings = get_settings()
 engine = create_engine(
     settings.database_url,
     # SQLite needs this for multi-threaded use (FastAPI runs in a thread pool)
-    connect_args={"check_same_thread": False} if "sqlite" in settings.database_url else {},
+    connect_args={"check_same_thread": False, "timeout": 15} if "sqlite" in settings.database_url else {},
     echo=settings.is_dev,  # Log SQL in dev
 )
+
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    if "sqlite" in settings.database_url:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

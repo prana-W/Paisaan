@@ -77,13 +77,25 @@ export function useSession() {
                 role: m.role,
                 content: m.content,
             }));
-            setMessages(restored);
-            setProfile(data.profile || {});
 
+            // If the session has a pending question but it isn't in the message
+            // log yet (e.g. first question before any answer), append it so it
+            // always appears in the UI.
             if (data.pending_question) {
-                addMessage('assistant', data.pending_question.text);
+                const alreadyPresent = restored.some(
+                    m => m.role === 'assistant' && m.content === data.pending_question.text
+                );
+                if (!alreadyPresent) {
+                    restored.push({
+                        id: `restored-pending`,
+                        role: 'assistant',
+                        content: data.pending_question.text,
+                    });
+                }
             }
 
+            setMessages(restored);
+            setProfile(data.profile || {});
             setStatus(data.status || 'interrupted');
         } catch (err) {
             setError(err.message || 'Failed to load session');

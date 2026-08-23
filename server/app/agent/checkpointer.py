@@ -8,10 +8,11 @@ FastAPI request can end, and a completely new HTTP connection can resume
 the exact same graph execution.
 
 Usage:
-    from app.agent.checkpointer import get_checkpointer
+    from app.agent.checkpointer import get_checkpointer, graph_lock
     checkpointer = get_checkpointer()
 """
 import sqlite3
+import threading
 from langgraph.checkpoint.sqlite import SqliteSaver
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -20,6 +21,13 @@ logger = get_logger(__name__)
 
 _checkpointer: SqliteSaver | None = None
 _conn: sqlite3.Connection | None = None
+
+# Single-writer lock: SQLite can handle concurrent reads in WAL mode, but
+# graph.stream() / graph.invoke() always writes to the checkpoint DB.
+# FastAPI runs handlers in a thread pool, so two simultaneous requests can
+# both call graph.stream() at the same time → "database is locked".
+# This lock serialises all graph operations so only one writes at a time.
+graph_lock = threading.Lock()
 
 
 def get_checkpointer() -> SqliteSaver:
@@ -48,8 +56,17 @@ def init_checkpointer() -> SqliteSaver:
 
     logger.info("Initialising SqliteSaver checkpointer at %s", settings.checkpoint_db_path)
 
-    # Open a persistent connection (check_same_thread=False for thread safety)
-    _conn = sqlite3.connect(settings.checkpoint_db_path, check_same_thread=False)
+    # Open a persistent connection. timeout=30 makes sqlite3 wait up to 30s
+    # for a write lock before raising OperationalError (last-resort safety net
+    # on top of the graph_lock above).
+    _conn = sqlite3.connect(
+        settings.checkpoint_db_path,
+        check_same_thread=False,
+        timeout=30,
+    )
+    _conn.execute("PRAGMA journal_mode=WAL;")
+    _conn.execute("PRAGMA busy_timeout=10000;")  # 10s at the SQLite level
+    _conn.commit()
     _checkpointer = SqliteSaver(_conn)
 
     return _checkpointer

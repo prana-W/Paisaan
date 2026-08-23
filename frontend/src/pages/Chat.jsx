@@ -63,7 +63,7 @@ function ChatBubble({ message }) {
     );
 }
 
-function Landing({ onStart }) {
+function Landing({ onStart, error }) {
     const [inputId, setInputId] = useState('');
     const [idError, setIdError] = useState('');
 
@@ -118,6 +118,13 @@ function Landing({ onStart }) {
                         </p>
                     </div>
 
+                    {error && (
+                        <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm bg-red-500/10" style={{ color: 'var(--destructive)' }}>
+                            <AlertCircle size={15} className="flex-shrink-0" />
+                            <span>{error}</span>
+                        </div>
+                    )}
+
                     <button
                         id="start-session-btn"
                         type="submit"
@@ -139,9 +146,15 @@ function Landing({ onStart }) {
 
 export default function Chat() {
     const {
-        messages, threadId, status, error, isLoading, isComplete,
+        messages, threadId, userId, status, error, isLoading, isComplete,
         startSession, loadSession, sendAnswer, resetSession,
     } = useSession();
+
+    // Track when a session start/load has been initiated so we show
+    // the chat pane immediately (before threadId is resolved)
+    const [sessionStarted, setSessionStarted] = useState(() => {
+        return !!sessionStorage.getItem('paisaan_thread_id');
+    });
 
     const [input, setInput] = useState('');
     const [sessionsList, setSessionsList] = useState([]);
@@ -195,6 +208,7 @@ export default function Chat() {
     }, []);
 
     const handleStart = (customId) => {
+        setSessionStarted(true);
         if (customId) {
             loadSession(customId);
         } else {
@@ -214,6 +228,7 @@ export default function Chat() {
     };
 
     const handleNewChat = () => {
+        setSessionStarted(false);
         resetSession();
         if (window.innerWidth < 1024) {
             setSidebarOpen(false);
@@ -221,6 +236,7 @@ export default function Chat() {
     };
 
     const handleSelectSession = (tid) => {
+        setSessionStarted(true);
         loadSession(tid);
         if (window.innerWidth < 1024) {
             setSidebarOpen(false);
@@ -355,8 +371,8 @@ export default function Chat() {
             <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-[var(--background)]">
                 {/* Main Content Pane */}
                 <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-                    {status === 'idle' || !threadId ? (
-                        <Landing onStart={handleStart} />
+                    {!sessionStarted ? (
+                        <Landing onStart={handleStart} error={error} />
                     ) : (
                         <>
                             {/* Message Log */}
