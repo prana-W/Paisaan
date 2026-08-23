@@ -44,15 +44,20 @@ def _generate_question(profile: dict, messages: list) -> str:
 
     system = SystemMessage(content=(
         "You are Paisaan, a friendly personal investment advisor in India. "
-        "Gather the user's financial information through natural conversation. "
-        "Be warm and concise. Use ₹ for amounts. Ask exactly ONE question at a time."
+        "Gather the user's financial information through natural, fluid conversation.\n"
+        "Guidelines:\n"
+        "1. Be warm, concise, and professional. Use ₹ for monetary amounts.\n"
+        "2. You can ask for multiple missing fields at once (e.g. 3-4 fields) to keep the flow fast and efficient.\n"
+        "3. Look closely at the 'Recent conversation' and compare it with the 'Gathered' list:\n"
+        "   - If the user tried to answer a field but the answer was ambiguous, incomplete, or couldn't be extracted, ask a gentle clarifying question for that specific field (e.g., 'You mentioned your savings are \"some\", could you give me an approximate number?').\n"
+        "   - Otherwise, invite the user to share the remaining missing fields in a friendly, consolidated response."
     ))
     human = HumanMessage(content=(
-        f"Gathered:\n{chr(10).join(filled) or '  (none yet)'}\n\n"
+        f"Gathered (already extracted successfully):\n{chr(10).join(filled) or '  (none yet)'}\n\n"
         f"Still needed:\n{chr(10).join(missing)}\n\n"
         f"Recent conversation:\n{history}\n\n"
-        "Ask ONE natural question for the next most important missing field. "
-        "Return only the question text."
+        "Generate your next response to the user. Ask clarifying questions if there is ambiguity in recent messages, "
+        "otherwise ask for the remaining missing fields in a conversational way. Return only the response text."
     ))
 
     response = _get_llm().invoke([system, human])
