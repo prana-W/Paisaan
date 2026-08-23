@@ -106,7 +106,20 @@ def compiler_node(state: dict) -> dict:
     summary = ""
     if research_messages:
         last = research_messages[-1]
-        summary = last.content if isinstance(last.content, str) else str(last.content)
+        content = last.content
+        if isinstance(content, str):
+            summary = content
+        elif isinstance(content, list):
+            # Gemini sometimes returns content as a list of blocks: [{'type': 'text', 'text': '...'}]
+            parts = []
+            for block in content:
+                if isinstance(block, str):
+                    parts.append(block)
+                elif isinstance(block, dict):
+                    parts.append(block.get("text", ""))
+            summary = "".join(parts)
+        else:
+            summary = str(content)
 
     market["research_summary"] = summary
     main_messages.append({"role": "assistant", "content": summary})

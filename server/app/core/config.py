@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     # Environment
     env: str
 
+    # LangSmith (Optional for testing/tracing)
+    langchain_tracing_v2: str | None = None
+    langchain_api_key: str | None = None
+    langchain_project: str | None = None
+
     @property
     def is_dev(self) -> bool:
         return self.env == "development"
