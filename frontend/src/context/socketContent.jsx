@@ -1,31 +1,22 @@
-import React, { createContext, useEffect, useState } from "react";
-import { io } from "socket.io-client";
+/**
+ * SocketContext — placeholder for Phase 0.
+ *
+ * Paisaan uses HTTP polling (POST /session → POST /resume) for the
+ * interrupt/resume pattern. WebSocket support may be added in a later phase
+ * for real-time portfolio price updates.
+ *
+ * For now this is a no-op context so main.jsx imports don't break.
+ */
+import React, { createContext } from "react";
 
 const SocketContext = createContext(null);
 
 export const SocketProvider = ({ children }) => {
-    const [socket, setSocket] = useState(null);
-
-    useEffect(() => {
-        // Connect to backend
-        const socketInstance = io(import.meta.env.VITE_SERVER_URL, {
-            withCredentials: true,
-            transports: ["websocket"],
-        });
-
-        setSocket(socketInstance);
-
-        // Clean up when unmounted
-        return () => {
-            socketInstance.disconnect();
-        };
-    }, []);
-
     return (
-        <SocketContext.Provider value={socket}>
+        <SocketContext.Provider value={null}>
             {children}
         </SocketContext.Provider>
     );
 };
 
-export {SocketContext}
+export { SocketContext };

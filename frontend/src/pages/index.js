@@ -1,5 +1,4 @@
-import Home from './Home';
-import About from './About';
-import NotFound from './NotFound';
+import Chat from './Chat';
+import Portfolio from './Portfolio';
 
-export {Home, About, NotFound};
+export { Chat, Portfolio };
