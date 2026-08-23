@@ -1,5 +1,11 @@
 # Paisaan Development Log
 
+## August 23, 2026 — Phase 2: Market Data Tools (Mutual Fund NAV)
+- Started Phase 2 by implementing the first market data tool: Mutual Fund NAV fetcher.
+- Created `server/app/agent/tools/mutual_fund.py` using `mfapi.in`.
+- Decorated with Langchain's `@tool` for easy agent consumption.
+- Wrote a standalone scratch script to verify fetching logic works independently of the graph.
+
 ## August 23, 2026 — Phase 0: Skeleton & Architecture
 - **LangGraph Checkpointer Architecture**: Implemented the mandatory architecture where FastAPI is stateless and LangGraph state is persisted across requests using `SqliteSaver`. Verified the `interrupt()` -> FastAPI -> `/resume` round-trip.
 - **FastAPI Endpoints**: Created API routes for session management (`POST /session`, `POST /session/{id}/message`, `POST /session/{id}/resume`).
