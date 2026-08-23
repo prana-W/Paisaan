@@ -1,10 +1,13 @@
 # Paisaan Development Log
 
-## August 23, 2026 — Phase 2: Market Data Tools (Mutual Fund NAV)
-- Started Phase 2 by implementing the first market data tool: Mutual Fund NAV fetcher.
-- Created `server/app/agent/tools/mutual_fund.py` using `mfapi.in`.
-- Decorated with Langchain's `@tool` for easy agent consumption.
-- Wrote a standalone scratch script to verify fetching logic works independently of the graph.
+## August 23, 2026 — Phase 2: Market Data Tools
+- Implemented the Mutual Fund NAV fetcher tool using `mfapi.in`.
+- Implemented the Stock Price tool using `yfinance`, with auto `.NS` appending for Indian stocks.
+- Implemented the Gold/Silver price fetcher using `yfinance` to fetch NSE Bullion ETF prices (`GOLDBEES.NS` and `SILVERBEES.NS`) as reliable, free, and correlated proxies for domestic bullion.
+- Implemented the FD Rates fetcher tool using `duckduckgo-search` to aggregate live bank rates text snippets.
+- Implemented the Market News search tool using `duckduckgo-search` to fetch the latest business news.
+- All tools decorated with Langchain's `@tool` for easy agent consumption.
+- Verified all 5 tools flawlessly fetch live data using isolated scratch scripts.
 
 ## August 23, 2026 — Phase 0: Skeleton & Architecture
 - **LangGraph Checkpointer Architecture**: Implemented the mandatory architecture where FastAPI is stateless and LangGraph state is persisted across requests using `SqliteSaver`. Verified the `interrupt()` -> FastAPI -> `/resume` round-trip.
