@@ -1,0 +1,17 @@
+[project]
+name = "paisaan"
+version = "0.1.0"
+description = "Your own Personal Investment Agent. Make your money FOLLOW the right path."
+authors = [
+  { name="Pranaw Kumar", email="pranaw.kr.dev@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.11"
+
+dependencies = [
+  "dotenv>=0.9.9",
+  "langchain>=1.3.14",
+  "langchain-google>=0.1.1",
+  "langchain-ollama>=1.1.0",
+  "langgraph>=1.2.10",
+]
