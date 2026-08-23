@@ -1,5 +1,11 @@
 # Paisaan Development Log
 
+## August 23, 2026 — Phase 3: Market Subgraph & Consent Logic
+- **State Updates**: Added `investment_preferences` (to dynamically guide research) and `research_consent` to `AgentState`.
+- **Intelligent Consent**: Built `ask_research_consent_node` to handle human-in-the-loop interruption, and `parse_research_consent_node` to intelligently map natural language replies (e.g. "yep", "go for it") to booleans using an LLM structured output.
+- **Dynamic LLM Researcher Subgraph**: Created `market_subgraph.py` featuring a "Researcher" LLM node equipped with `.bind_tools()`. This node dynamically reads the user's profile and preferences to invoke relevant tools in parallel via LangGraph's `ToolNode`, then compiles the results into a beautiful summary.
+- **Graph Wiring**: Wired the main orchestration graph as `START -> intake_subgraph -> ask_research_consent -> parse_research_consent -> (conditional) -> market_subgraph -> END`.
+
 ## August 23, 2026 — Phase 2 & Subgraph Refactor
 - Refactored the core LangGraph architecture to use nested subgraphs, starting by extracting the `intake_node` loop into its own encapsulated `intake_subgraph.py`.
 - Implemented the Mutual Fund NAV fetcher tool using `mfapi.in`.

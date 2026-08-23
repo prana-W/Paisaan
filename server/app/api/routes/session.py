@@ -160,12 +160,34 @@ def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeRespon
     logger.info("Resuming session thread_id=%s answer=%r", session_id, answer)
 
     from langgraph.types import Command
-    status, payload, _ = _stream_until_interrupt(graph, session_id, Command(resume=answer))
+    status, payload, state = _stream_until_interrupt(graph, session_id, Command(resume=answer))
     update_session_status(db, session_id, status)
 
-    message = payload.get("text") if isinstance(payload, dict) else "Session complete. ✅"
+    if payload:
+        # Graph paused on an interrupt — return the interrupt question
+        message = payload.get("text") if isinstance(payload, dict) else str(payload)
+    else:
+        # Graph ran to completion — return the last assistant message from state
+        # (e.g. the market research summary written by compiler_node)
+        messages = state.values.get("messages", [])
+        last_ai = next(
+            (m for m in reversed(messages) if (
+                (isinstance(m, dict) and m.get("role") == "assistant") or
+                (hasattr(m, "type") and m.type == "ai")
+            )),
+            None,
+        )
+        if last_ai:
+            message = last_ai.get("content") if isinstance(last_ai, dict) else last_ai.content
+        else:
+            market = state.values.get("market", {})
+            message = (
+                market.get("research_summary") if isinstance(market, dict)
+                else getattr(market, "research_summary", None)
+            ) or "Research complete. ✅"
 
     return ResumeResponse(thread_id=session_id, status=status, message=message, payload=payload)
+
 
 
 @router.get("/portfolio/{user_id}")

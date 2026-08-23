@@ -98,10 +98,7 @@ def intake_node(state: dict) -> dict:
     if _profile_is_complete(profile):
         profile["intake_complete"] = True
         logger.info("Intake complete for thread_id=%s", state.get("thread_id"))
-        messages = messages + [{"role": "assistant", "content": (
-            "Great, I now have a clear picture of your financial situation! "
-            "Let me analyze the markets and prepare your personalized investment plan."
-        )}]
+        # No completion message here — the consent node will speak next
         return {**state, "profile": profile, "messages": messages}
 
     question = _generate_question(profile, messages)
