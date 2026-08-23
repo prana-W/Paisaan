@@ -72,11 +72,24 @@ export function useSession() {
             setThreadId(customThreadId);
             setUserId(data.user_id);
 
-            const restored = (data.messages || []).map((m, i) => ({
-                id: `restored-${i}`,
-                role: m.role,
-                content: m.content,
-            }));
+            const restored = (data.messages || []).map((m, i) => {
+                const role = m.role || (m.type === 'ai' ? 'assistant' : m.type === 'human' ? 'user' : m.type);
+                return {
+                    id: `restored-${i}`,
+                    role: role,
+                    content: m.content,
+                };
+            });
+
+            // Attach tool_calls from state to the most recent assistant message, if any
+            if (data.tool_calls && data.tool_calls.length > 0) {
+                for (let i = restored.length - 1; i >= 0; i--) {
+                    if (restored[i].role === 'assistant') {
+                        restored[i].toolCalls = data.tool_calls;
+                        break;
+                    }
+                }
+            }
 
             // If the session has a pending question but it isn't in the message
             // log yet (e.g. first question before any answer), append it so it
@@ -114,7 +127,14 @@ export function useSession() {
 
         try {
             const data = await resumeSession(threadId, text);
-            if (data.message) addMessage('assistant', data.message);
+            if (data.message) {
+                setMessages(prev => [...prev, {
+                    id: `${Date.now()}-${Math.random()}`,
+                    role: 'assistant',
+                    content: data.message,
+                    toolCalls: data.tool_calls || [],
+                }]);
+            }
             setStatus(data.status);
         } catch (err) {
             setError(err.message || 'Something went wrong. Please try again.');

@@ -8,12 +8,58 @@ from app.db.session import get_db
 from app.db.crud import get_or_create_user, create_session, get_session, update_session_status, get_sessions, delete_session
 from app.schemas.profile import (
     CreateSessionRequest, MessageRequest, ResumeRequest,
-    SessionResponse, ResumeResponse, SessionStateResponse, SessionSummary,
+    SessionResponse, ResumeResponse, SessionStateResponse, SessionSummary, ToolCallInfo,
 )
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+TOOL_LABELS = {
+    "get_mutual_fund_nav":   "📊 Fetching Mutual Fund NAVs",
+    "get_stock_price":       "📈 Fetching Stock Prices",
+    "get_gold_silver_price": "🥇 Fetching Bullion Prices",
+    "get_fd_rates":          "🏦 Fetching FD Rates",
+    "search_market_news":    "📰 Scanning Market News",
+}
+
+
+def _extract_tool_calls(state) -> list[ToolCallInfo]:
+    """
+    Walk all message lists in state to extract tool invocations and their results.
+    Scans both `messages` (main chat) and `research_messages` (market subgraph) so
+    any future subgraph whose tools land in either list is captured automatically.
+    Returns a deduplicated list of ToolCallInfo for the frontend to display.
+    """
+    all_messages = list(state.values.get("messages", [])) + list(state.values.get("research_messages", []))
+    tool_calls: list[ToolCallInfo] = []
+    seen_ids: set[str] = set()
+
+    # Map tool_call_id → name from AIMessage tool_calls
+    id_to_name: dict[str, str] = {}
+    for msg in all_messages:
+        if hasattr(msg, "tool_calls") and msg.tool_calls:
+            for tc in msg.tool_calls:
+                id_to_name[tc["id"]] = tc["name"]
+
+    # Collect results from ToolMessages, deduplicating by tool_call_id
+    for msg in all_messages:
+        if hasattr(msg, "type") and msg.type == "tool":
+            call_id = getattr(msg, "tool_call_id", None)
+            if call_id and call_id in seen_ids:
+                continue
+            if call_id:
+                seen_ids.add(call_id)
+
+            name = id_to_name.get(call_id, getattr(msg, "name", None) or "tool")
+            label = TOOL_LABELS.get(name, f"🔧 {name.replace('_', ' ').title()}")
+            content = msg.content
+            if isinstance(content, list):
+                content = " ".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in content)
+            tool_calls.append(ToolCallInfo(name=label, status="success", result_preview=str(content)))
+
+    return tool_calls
 
 
 def _stream_until_interrupt(graph, thread_id: str, input_payload):
@@ -78,6 +124,7 @@ def get_session_state(session_id: str, db: DBSession = Depends(get_db)):
         messages=state.values.get("messages", []),
         profile=state.values.get("profile", {}),
         pending_question=interrupt_payload,
+        tool_calls=_extract_tool_calls(state),
     )
 
 
@@ -186,7 +233,13 @@ def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeRespon
                 else getattr(market, "research_summary", None)
             ) or "Research complete. ✅"
 
-    return ResumeResponse(thread_id=session_id, status=status, message=message, payload=payload)
+    return ResumeResponse(
+        thread_id=session_id,
+        status=status,
+        message=message,
+        payload=payload,
+        tool_calls=_extract_tool_calls(state),
+    )
 
 
 

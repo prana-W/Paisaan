@@ -5,7 +5,7 @@ import { useSession } from '@/hooks/useSession';
 import { getSessions, deleteSession } from '@/utils/api';
 import {
     Send, RotateCcw, TrendingUp, Loader2, AlertCircle,
-    CheckCircle2, ArrowRight, MessageSquare, Plus, Menu, X, Bot, User, Trash2
+    CheckCircle2, ArrowRight, MessageSquare, Plus, Menu, X, Bot, User, Trash2, ChevronDown, ChevronRight, CheckCircle, Wrench
 } from 'lucide-react';
 
 function TypingIndicator() {
@@ -34,8 +34,61 @@ function TypingIndicator() {
     );
 }
 
+const PREVIEW_LIMIT = 160;
+
+function ToolCallRow({ tc }) {
+    const [expanded, setExpanded] = useState(false);
+    const full = tc.result_preview || '';
+    const isLong = full.length > PREVIEW_LIMIT;
+    const preview = isLong ? full.slice(0, PREVIEW_LIMIT) + '…' : full;
+
+    return (
+        <div className="flex flex-col gap-1 px-3 py-2.5 rounded-xl border border-[var(--border)]/50 bg-[var(--background)] ml-3">
+            {/* Tool name row */}
+            <div className="flex items-center gap-2">
+                {tc.status === 'success' ? (
+                    <CheckCircle size={12} className="text-gain flex-shrink-0" />
+                ) : (
+                    <AlertCircle size={12} className="text-destructive flex-shrink-0" />
+                )}
+                <span className="text-xs font-medium text-[var(--foreground)] flex-1">{tc.name}</span>
+            </div>
+
+            {/* Result */}
+            {full && (
+                <div className="pl-5">
+                    {expanded ? (
+                        <pre
+                            className="text-[10px] text-[var(--muted-foreground)] font-mono whitespace-pre-wrap break-all max-h-64 overflow-y-auto rounded-lg p-2"
+                            style={{ background: 'var(--surface-2)' }}
+                        >
+                            {full}
+                        </pre>
+                    ) : (
+                        <span className="text-[10px] text-[var(--muted-foreground)] font-mono opacity-70 break-all">
+                            {preview}
+                        </span>
+                    )}
+                    {isLong && (
+                        <button
+                            onClick={() => setExpanded(e => !e)}
+                            className="mt-1 text-[10px] font-semibold transition-colors"
+                            style={{ color: 'var(--primary)' }}
+                        >
+                            {expanded ? '▲ Collapse' : '▼ Show full result'}
+                        </button>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function ChatBubble({ message }) {
     const isAssistant = message.role === 'assistant';
+    const hasTools = isAssistant && message.toolCalls && message.toolCalls.length > 0;
+    const [toolsExpanded, setToolsExpanded] = useState(false);
+
     return (
         <div className={`flex items-start gap-4 animate-bubble-in ${isAssistant ? '' : 'flex-row-reverse'}`}>
             {isAssistant ? (
@@ -51,23 +104,53 @@ function ChatBubble({ message }) {
                 <div className="text-xs font-semibold text-[var(--muted-foreground)]">
                     {isAssistant ? 'Paisaan' : 'You'}
                 </div>
-                <div
-                    className={`inline-block text-left text-sm leading-relaxed px-4 py-3 rounded-2xl max-w-[85%]`}
-                    style={isAssistant
-                        ? { background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }
-                        : { background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--foreground)' }
-                    }
-                >
-                    {isAssistant ? (
-                        <div className="markdown-body">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {message.content}
-                            </ReactMarkdown>
-                        </div>
-                    ) : (
-                        message.content
-                    )}
-                </div>
+                
+                {/* Tool Calls Display */}
+                {hasTools && (
+                    <div className="mb-2 max-w-[85%]">
+                        <button
+                            onClick={() => setToolsExpanded(!toolsExpanded)}
+                            className="flex items-center gap-2 px-3 py-2 w-full text-left rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 hover:bg-[var(--surface-2)] transition-colors"
+                        >
+                            <div className="w-5 h-5 rounded-md bg-[var(--primary)]/10 flex items-center justify-center flex-shrink-0">
+                                <Wrench size={12} className="text-[var(--primary)]" />
+                            </div>
+                            <span className="flex-1 text-xs font-semibold text-[var(--foreground)]">
+                                Tools Called ({message.toolCalls.length})
+                            </span>
+                            {toolsExpanded ? <ChevronDown size={14} className="text-[var(--muted-foreground)]" /> : <ChevronRight size={14} className="text-[var(--muted-foreground)]" />}
+                        </button>
+                        
+                        {toolsExpanded && (
+                            <div className="mt-1.5 space-y-1.5">
+                                {message.toolCalls.map((tc, idx) => (
+                                    <ToolCallRow key={idx} tc={tc} />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Main Message Content */}
+                {message.content && (
+                    <div
+                        className={`inline-block text-left text-sm leading-relaxed px-4 py-3 rounded-2xl max-w-[85%]`}
+                        style={isAssistant
+                            ? { background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }
+                            : { background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--foreground)' }
+                        }
+                    >
+                        {isAssistant ? (
+                            <div className="markdown-body">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {message.content}
+                                </ReactMarkdown>
+                            </div>
+                        ) : (
+                            message.content
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

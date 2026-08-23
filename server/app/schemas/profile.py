@@ -30,11 +30,18 @@ class SessionResponse(BaseModel):
     payload: dict | None = None
 
 
+class ToolCallInfo(BaseModel):
+    name: str
+    status: str = "success"   # "success" | "error"
+    result_preview: str | None = None
+
+
 class ResumeResponse(BaseModel):
     thread_id: str
     status: str
     message: str | None = None
     payload: dict | None = None
+    tool_calls: list[ToolCallInfo] = []
 
 
 class SessionStateResponse(BaseModel):
@@ -45,6 +52,7 @@ class SessionStateResponse(BaseModel):
     messages: list = []
     profile: dict = {}
     pending_question: dict | None = None
+    tool_calls: list[ToolCallInfo] = []
 
 
 class SessionSummary(BaseModel):
