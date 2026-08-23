@@ -10,6 +10,9 @@ Startup sequence (lifespan):
 All four steps must complete before any request is served.
 """
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
