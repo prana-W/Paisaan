@@ -1,5 +1,13 @@
 # Paisaan Development Log
 
+## August 25, 2026 — Phase 4: Gains Subgraph & Full Flow Integration
+- **State & Routing Updates**: Expanded `AgentState` with `gains_consent` and `gains_messages` to manage a second isolated LLM chat context for calculations.
+- **Calculator Tool**: Implemented `split_investment` as a strict allocation engine that calculates multi-source compound interest and ensures allocations sum to exactly 100%.
+- **Gains Subgraph**: Created `gains_subgraph.py` featuring a planner LLM that interprets market research and user profiles, calls the calculator tool, and generates an investment strategy.
+- **Async to Sync Tool Refactoring**: Converted async tools (`get_mutual_fund_nav`) to use synchronous `httpx.Client()` since LangGraph's default `ToolNode` executes tools synchronously.
+- **Rich User Presentations**: Refactored subgraphs to build highly detailed Markdown output. `store_research` forces structured market data tables, while `show_gains` parses raw JSON tool responses into a comprehensive financial plan table. Both are injected directly into the chat or consent interrupt prompts for seamless user UX.
+- **Documentation**: Generated the `README.md` complete with the Mermaid Architecture diagram, feature list, and Docker setup instructions.
+
 ## August 23, 2026 — Phase 3: Market Subgraph & Consent Logic
 - **State Updates**: Added `investment_preferences` (to dynamically guide research) and `research_consent` to `AgentState`.
 - **Intelligent Consent**: Built `ask_research_consent_node` to handle human-in-the-loop interruption, and `parse_research_consent_node` to intelligently map natural language replies (e.g. "yep", "go for it") to booleans using an LLM structured output.
