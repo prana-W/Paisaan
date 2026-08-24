@@ -172,7 +172,8 @@ def build_graph(checkpointer):
     builder.add_edge("gains_subgraph", END)
 
     compiled = builder.compile(checkpointer=checkpointer)
-    print(compiled.get_graph().draw_mermaid())
+    with open("paisaan_agent_mermaid.mmd", "w") as f:
+        f.write(compiled.get_graph(xray=True).draw_mermaid())
 
     logger.info("Graph compiled (%d nodes)", len(builder.nodes))
     return compiled
