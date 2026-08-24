@@ -22,6 +22,7 @@ TOOL_LABELS = {
     "get_gold_silver_price": "🥇 Fetching Bullion Prices",
     "get_fd_rates":          "🏦 Fetching FD Rates",
     "search_market_news":    "📰 Scanning Market News",
+    "split_investment":      "🧮 Calculating Investment Gains",
 }
 
 
@@ -32,7 +33,11 @@ def _extract_tool_calls(state) -> list[ToolCallInfo]:
     any future subgraph whose tools land in either list is captured automatically.
     Returns a deduplicated list of ToolCallInfo for the frontend to display.
     """
-    all_messages = list(state.values.get("messages", [])) + list(state.values.get("research_messages", []))
+    all_messages = (
+        list(state.values.get("messages", []))
+        + list(state.values.get("research_messages", []))
+        + list(state.values.get("gains_messages", []))
+    )
     tool_calls: list[ToolCallInfo] = []
     seen_ids: set[str] = set()
 
@@ -167,11 +172,15 @@ def create_new_session(body: CreateSessionRequest, db: DBSession = Depends(get_d
         "thread_id": thread_id,
         "messages": [],
         "profile": {},
-        "horizon": None,
         "market": {},
+        "investment_plan": {},
+        "research_consent": None,
+        "gains_consent": None,
         "draft_allocation": [],
         "confirmed": False,
         "transaction_id": None,
+        "research_messages": [],
+        "gains_messages": [],
     }
 
     status, payload, _ = _stream_until_interrupt(graph, thread_id, initial_state)

@@ -83,24 +83,23 @@ def researcher_node(state: dict) -> dict:
 
 
 def should_continue(state: dict) -> str:
-    """Determines whether to call tools or move to the compiler."""
+    """Determines whether to call tools or finish research."""
     research_messages = state.get("research_messages", [])
     if not research_messages:
-        return "compiler"
+        return END
     last_message = research_messages[-1]
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         return "tools"
-    return "compiler"
+    return END
 
 
-def compiler_node(state: dict) -> dict:
+def store_research_node(state: dict) -> dict:
     """
-    Takes the final LLM summary from research_messages and:
-    1. Stores it in market.research_summary
-    2. Appends it to the shared `messages` list so the frontend can display it
+    After the researcher finishes, extract the final summary text from
+    research_messages and store it in market.research_summary so downstream
+    nodes (gains subgraph, compiler) can read it without parsing BaseMessages.
     """
     research_messages = state.get("research_messages", [])
-    main_messages = list(state.get("messages", []))
     market = dict(state.get("market", {}))
 
     summary = ""
@@ -110,7 +109,6 @@ def compiler_node(state: dict) -> dict:
         if isinstance(content, str):
             summary = content
         elif isinstance(content, list):
-            # Gemini sometimes returns content as a list of blocks: [{'type': 'text', 'text': '...'}]
             parts = []
             for block in content:
                 if isinstance(block, str):
@@ -122,47 +120,37 @@ def compiler_node(state: dict) -> dict:
             summary = str(content)
 
     market["research_summary"] = summary
-    main_messages.append({"role": "assistant", "content": summary})
 
-    return {
-        "market": market,
-        "messages": main_messages,
-    }
+    return {"market": market}
 
 
 def build_market_subgraph():
     """
     Build the market research subgraph.
-    Uses AgentState as the schema so research_messages gets the add_messages reducer
-    and all state keys are unified under state.py — no local TypedDicts needed.
+    researcher → tools (loop) → store_research → END
     """
-    # We need the add_messages reducer on research_messages.
-    # Since AgentState is a Pydantic BaseModel (not a TypedDict), we pass it as a
-    # TypedDict-compatible schema by using its __annotations__ with Annotated overrides.
-    # The cleanest LangGraph way: use a small TypedDict that re-declares only what needs
-    # a reducer, keeping everything else as a plain pass-through.
     from typing import TypedDict, Any
 
     class _Schema(TypedDict, total=False):
         research_messages: Annotated[list, add_messages]
         profile: Any
         market: Any
-        messages: list
 
     builder = StateGraph(_Schema)
 
     builder.add_node("researcher", researcher_node)
     builder.add_node("tools", ToolNode(tools, messages_key="research_messages"))
-    builder.add_node("compiler", compiler_node)
+    builder.add_node("store_research", store_research_node)
 
     builder.add_edge(START, "researcher")
     builder.add_conditional_edges("researcher", should_continue, {
         "tools": "tools",
-        "compiler": "compiler"
+        END: "store_research",
     })
     builder.add_edge("tools", "researcher")
-    builder.add_edge("compiler", END)
+    builder.add_edge("store_research", END)
 
     compiled = builder.compile()
     logger.debug("Market Subgraph compiled (%d nodes)", len(builder.nodes))
     return compiled
+
