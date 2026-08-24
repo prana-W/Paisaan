@@ -96,11 +96,12 @@ def should_continue(state: dict) -> str:
 def store_research_node(state: dict) -> dict:
     """
     After the researcher finishes, extract the final summary text from
-    research_messages and store it in market.research_summary so downstream
-    nodes (gains subgraph, compiler) can read it without parsing BaseMessages.
+    research_messages, store it in market.research_summary, and append it
+    to the main messages so the frontend displays it to the user.
     """
     research_messages = state.get("research_messages", [])
     market = dict(state.get("market", {}))
+    messages = list(state.get("messages", []))
 
     summary = ""
     if research_messages:
@@ -120,14 +121,15 @@ def store_research_node(state: dict) -> dict:
             summary = str(content)
 
     market["research_summary"] = summary
+    messages.append({"role": "assistant", "content": summary})
 
-    return {"market": market}
+    return {"market": market, "messages": messages}
 
 
 def build_market_subgraph():
     """
     Build the market research subgraph.
-    researcher → tools (loop) → store_research → END
+    researcher → tools (loop) → store_research (saves summary + shows to user) → END
     """
     from typing import TypedDict, Any
 
@@ -135,6 +137,7 @@ def build_market_subgraph():
         research_messages: Annotated[list, add_messages]
         profile: Any
         market: Any
+        messages: list
 
     builder = StateGraph(_Schema)
 
@@ -153,4 +156,5 @@ def build_market_subgraph():
     compiled = builder.compile()
     logger.debug("Market Subgraph compiled (%d nodes)", len(builder.nodes))
     return compiled
+
 

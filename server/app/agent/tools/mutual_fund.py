@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 logger = logging.getLogger(__name__)
 
 @tool
-async def get_mutual_fund_nav(scheme_code: str) -> Optional[Dict[str, Any]]:
+def get_mutual_fund_nav(scheme_code: str) -> Optional[Dict[str, Any]]:
     """
     Fetch the latest Net Asset Value (NAV) for a given Indian mutual fund scheme code.
     Uses the free mfapi.in API.
@@ -20,8 +20,8 @@ async def get_mutual_fund_nav(scheme_code: str) -> Optional[Dict[str, Any]]:
     url = f"https://api.mfapi.in/mf/{scheme_code}"
     
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(url)
+        with httpx.Client(timeout=10.0) as client:
+            response = client.get(url)
             response.raise_for_status()
             data = response.json()
             

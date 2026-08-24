@@ -94,24 +94,8 @@ def _check_research_consent(state: dict) -> str:
     return END
 
 
-# ── Show market research to user ────────────────────────────────────────────
-
-def show_research_node(state: dict) -> dict:
-    """Extracts market.research_summary and adds it to messages for the frontend."""
-    market = state.get("market", {})
-    messages = list(state.get("messages", []))
-
-    summary = (
-        market.get("research_summary") if isinstance(market, dict)
-        else getattr(market, "research_summary", None)
-    ) or "Market research complete."
-
-    messages.append({"role": "assistant", "content": summary})
-
-    return {**state, "messages": messages}
-
-
 # ── Gains consent (after showing research, before gains calculation) ─────────
+
 
 def ask_gains_consent_node(state: dict) -> dict:
     messages = list(state.get("messages", []))
@@ -144,73 +128,8 @@ def _check_gains_consent(state: dict) -> str:
     return END
 
 
-# ── Show gains results to user ──────────────────────────────────────────────
-
-def show_gains_node(state: dict) -> dict:
-    """
-    Extracts the detailed gains results from gains_messages (tool call results + LLM summary)
-    and adds a comprehensive message to the chat for the frontend.
-    """
-    gains_messages = state.get("gains_messages", [])
-    messages = list(state.get("messages", []))
-
-    # Extract the split_investment tool result for detailed data
-    tool_result = None
-    for msg in gains_messages:
-        if hasattr(msg, "type") and msg.type == "tool":
-            try:
-                raw = msg.content
-                if isinstance(raw, str):
-                    tool_result = json.loads(raw)
-                elif isinstance(raw, dict):
-                    tool_result = raw
-            except (json.JSONDecodeError, TypeError):
-                pass
-
-    # Extract the LLM's final conversational summary
-    llm_summary = ""
-    for msg in reversed(gains_messages):
-        if hasattr(msg, "type") and msg.type == "ai":
-            if not (hasattr(msg, "tool_calls") and msg.tool_calls):
-                llm_summary = _extract_content(msg)
-                break
-
-    # Build a detailed markdown message
-    parts = []
-
-    if tool_result and "allocations" in tool_result:
-        parts.append("## 📊 Your Investment Plan\n")
-        parts.append(f"**Total Investment:** ₹{tool_result['total_principal']:,.2f}")
-        parts.append(f"**Investment Duration:** {tool_result['years']} years")
-        parts.append(f"**Projected Final Value:** ₹{tool_result['total_final_value']:,.2f}")
-        parts.append(f"**Total Projected Gain:** ₹{tool_result['total_gain']:,.2f} "
-                      f"({tool_result.get('total_gain_pct', 0):.1f}%)\n")
-
-        parts.append("### Allocation Breakdown\n")
-        parts.append("| Source | Investment (₹) | Annual Rate | Final Value (₹) | Gain (₹) | Gain % |")
-        parts.append("|--------|---------------|-------------|-----------------|----------|--------|")
-        for alloc in tool_result["allocations"]:
-            parts.append(
-                f"| {alloc['source']} "
-                f"| {alloc['principal']:,.2f} "
-                f"| {alloc['annual_rate_pct']}% "
-                f"| {alloc['final_value']:,.2f} "
-                f"| {alloc['total_gain']:,.2f} "
-                f"| {alloc['gain_pct']}% |"
-            )
-        parts.append("")
-
-    if llm_summary:
-        parts.append("### Analysis\n")
-        parts.append(llm_summary)
-
-    detailed_message = "\n".join(parts) if parts else "Investment plan calculation complete."
-    messages.append({"role": "assistant", "content": detailed_message})
-
-    return {**state, "messages": messages}
-
-
 # ── Graph builder ───────────────────────────────────────────────────────────
+
 
 def build_graph(checkpointer):
     builder = StateGraph(dict)
@@ -220,11 +139,9 @@ def build_graph(checkpointer):
     builder.add_node("ask_research_consent", ask_research_consent_node)
     builder.add_node("parse_research_consent", parse_research_consent_node)
     builder.add_node("market_subgraph", build_market_subgraph())
-    builder.add_node("show_research", show_research_node)
     builder.add_node("ask_gains_consent", ask_gains_consent_node)
     builder.add_node("parse_gains_consent", parse_gains_consent_node)
     builder.add_node("gains_subgraph", build_gains_subgraph())
-    builder.add_node("show_gains", show_gains_node)
 
     # Wiring
     builder.add_edge(START, "intake_subgraph")
@@ -236,8 +153,7 @@ def build_graph(checkpointer):
         END: END,
     })
 
-    builder.add_edge("market_subgraph", "show_research")
-    builder.add_edge("show_research", "ask_gains_consent")
+    builder.add_edge("market_subgraph", "ask_gains_consent")
     builder.add_edge("ask_gains_consent", "parse_gains_consent")
 
     builder.add_conditional_edges("parse_gains_consent", _check_gains_consent, {
@@ -245,8 +161,7 @@ def build_graph(checkpointer):
         END: END,
     })
 
-    builder.add_edge("gains_subgraph", "show_gains")
-    builder.add_edge("show_gains", END)
+    builder.add_edge("gains_subgraph", END)
 
     compiled = builder.compile(checkpointer=checkpointer)
     print(compiled.get_graph().draw_mermaid())

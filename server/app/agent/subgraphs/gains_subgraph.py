@@ -107,7 +107,83 @@ def should_continue(state: dict) -> str:
     last_message = gains_messages[-1]
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         return "tools"
-    return END
+    return "show_gains"
+
+
+def _extract_content(msg) -> str:
+    content = msg.content if hasattr(msg, "content") else str(msg)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                parts.append(block.get("text", ""))
+        return "".join(parts)
+    return str(content)
+
+
+def show_gains_node(state: dict) -> dict:
+    """
+    Extracts the detailed gains results from gains_messages (tool call results + LLM summary)
+    and adds a comprehensive message to the chat for the frontend.
+    """
+    gains_messages = state.get("gains_messages", [])
+    messages = list(state.get("messages", []))
+
+    tool_result = None
+    for msg in gains_messages:
+        if hasattr(msg, "type") and msg.type == "tool":
+            try:
+                raw = msg.content
+                if isinstance(raw, str):
+                    tool_result = json.loads(raw)
+                elif isinstance(raw, dict):
+                    tool_result = raw
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+    llm_summary = ""
+    for msg in reversed(gains_messages):
+        if hasattr(msg, "type") and msg.type == "ai":
+            if not (hasattr(msg, "tool_calls") and msg.tool_calls):
+                llm_summary = _extract_content(msg)
+                break
+
+    parts = []
+
+    if tool_result and "allocations" in tool_result:
+        parts.append("## 📊 Your Investment Plan\n")
+        parts.append(f"**Total Investment:** ₹{tool_result['total_principal']:,.2f}")
+        parts.append(f"**Investment Duration:** {tool_result['years']} years")
+        parts.append(f"**Projected Final Value:** ₹{tool_result['total_final_value']:,.2f}")
+        parts.append(f"**Total Projected Gain:** ₹{tool_result['total_gain']:,.2f} "
+                      f"({tool_result.get('total_gain_pct', 0):.1f}%)\n")
+
+        parts.append("### Allocation Breakdown\n")
+        parts.append("| Source | Investment (₹) | Annual Rate | Final Value (₹) | Gain (₹) | Gain % |")
+        parts.append("|--------|---------------|-------------|-----------------|----------|--------|")
+        for alloc in tool_result["allocations"]:
+            parts.append(
+                f"| {alloc['source']} "
+                f"| {alloc['principal']:,.2f} "
+                f"| {alloc['annual_rate_pct']}% "
+                f"| {alloc['final_value']:,.2f} "
+                f"| {alloc['total_gain']:,.2f} "
+                f"| {alloc['gain_pct']}% |"
+            )
+        parts.append("")
+
+    if llm_summary:
+        parts.append("### Analysis\n")
+        parts.append(llm_summary)
+
+    detailed_message = "\n".join(parts) if parts else "Investment plan calculation complete."
+    messages.append({"role": "assistant", "content": detailed_message})
+
+    return {"messages": messages}
 
 
 def build_gains_subgraph():
@@ -116,19 +192,23 @@ def build_gains_subgraph():
         profile: Any
         market: Any
         investment_plan: Any
+        messages: list
 
     builder = StateGraph(_Schema)
 
     builder.add_node("gains_planner", gains_planner_node)
     builder.add_node("tools", ToolNode(tools, messages_key="gains_messages"))
+    builder.add_node("show_gains", show_gains_node)
 
     builder.add_edge(START, "gains_planner")
     builder.add_conditional_edges("gains_planner", should_continue, {
         "tools": "tools",
-        END: END,
+        "show_gains": "show_gains",
     })
     builder.add_edge("tools", "gains_planner")
+    builder.add_edge("show_gains", END)
 
     compiled = builder.compile()
     logger.debug("Gains Subgraph compiled (%d nodes)", len(builder.nodes))
     return compiled
+
