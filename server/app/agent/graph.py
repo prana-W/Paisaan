@@ -99,10 +99,18 @@ def _check_research_consent(state: dict) -> str:
 
 def ask_gains_consent_node(state: dict) -> dict:
     messages = list(state.get("messages", []))
+    market = state.get("market", {})
+    
+    summary = (
+        market.get("research_summary") if isinstance(market, dict)
+        else getattr(market, "research_summary", None)
+    ) or "Market research complete (no details provided)."
 
     question = (
-        "Now I can calculate projected gains on your investment based on this market data. "
-        "Shall I crunch the numbers and show you a detailed investment plan?"
+        f"{summary}\n\n"
+        "---\n"
+        "**Now I can calculate projected gains on your investment based on this market data.**\n"
+        "**Shall I crunch the numbers and show you a detailed investment plan?**"
     )
 
     answer = interrupt({"type": "question", "text": question})

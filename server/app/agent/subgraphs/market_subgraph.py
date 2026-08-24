@@ -66,8 +66,9 @@ def researcher_node(state: dict) -> dict:
         "2. Call the appropriate tools to gather data relevant to the user's profile and preferences. "
         "For example, if they like 'Tata', fetch Tata stock prices. If they are conservative, fetch "
         "FD rates and bullion. You MUST call at least 1 tool.\n"
-        "3. Once the tools return their data, synthesize a beautiful, concise markdown summary of "
-        "the findings and present it to the user. Do not call tools again after summarizing."
+        "3. Once the tools return their data, synthesize a highly detailed and comprehensive markdown summary of "
+        "the findings. You MUST use structured Markdown tables to present the data (e.g., Asset Name, Current Price/Rate, Source/Notes, etc.). "
+        "Do not call tools again after summarizing."
     )
 
     llm_with_tools = _get_llm().bind_tools(tools)
@@ -121,7 +122,6 @@ def store_research_node(state: dict) -> dict:
             summary = str(content)
 
     market["research_summary"] = summary
-    messages.append({"role": "assistant", "content": summary})
 
     return {"market": market, "messages": messages}
 
