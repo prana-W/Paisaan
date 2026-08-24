@@ -87,3 +87,7 @@ class AgentState(BaseModel):
     # Kept separate from `messages` so the ToolNode never has to search through
     # the intake conversation to find the last AIMessage with tool_calls.
     research_messages: list[Any] = Field(default_factory=list)
+
+    # Isolated tool-calling history for the gains calculation subgraph.
+    gains_messages: list[Any] = Field(default_factory=list)
+
