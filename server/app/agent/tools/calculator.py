@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 @tool
 def split_investment(
     total_amount: float,
+    years: int,
     allocations: list[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """
@@ -18,7 +19,6 @@ def split_investment(
     - source: name of the investment (e.g. "HDFC Balanced Fund", "Gold", "SBI FD")
     - percent: what percentage of total_amount goes here (all percents must sum to 100)
     - annual_rate_pct: expected annual return rate as a percentage
-    - years: investment duration in years
 
     Returns a dictionary with:
     - allocations: list of per-source results (principal, final_value, gain, etc.)
@@ -37,17 +37,16 @@ def split_investment(
             "total_principal": total_amount,
             "total_final_value": 0,
             "total_gain": 0,
+            "years": years,
         }
 
     total_final = 0.0
     total_gain = 0.0
-    plan_years = 0
 
     for alloc in allocations:
         source = alloc.get("source", "Unknown")
         pct = alloc.get("percent", 0)
         rate = alloc.get("annual_rate_pct", 0)
-        years = alloc.get("years", 1)
         freq = alloc.get("compounding_frequency", 1)
 
         principal = total_amount * (pct / 100.0)
@@ -57,7 +56,6 @@ def split_investment(
 
         total_final += final_value
         total_gain += gain
-        plan_years = max(plan_years, years)
 
         results.append({
             "source": source,
@@ -76,5 +74,5 @@ def split_investment(
         "total_final_value": round(total_final, 2),
         "total_gain": round(total_gain, 2),
         "total_gain_pct": round((total_gain / total_amount) * 100, 2) if total_amount > 0 else 0.0,
-        "years": plan_years,
+        "years": years,
     }
