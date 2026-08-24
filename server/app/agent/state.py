@@ -19,6 +19,7 @@ class Profile(BaseModel):
     risk_tolerance: Literal["low", "medium", "high"] | None = Field(default=None, description="Risk tolerance — low, medium, or high", json_schema_extra={"intake_required": True})
     goal: str | None = Field(default=None, description="Primary investment goal", json_schema_extra={"intake_required": True})
     investment_preferences: str | None = Field(default=None, description="User's specific investment preferences, favorite stocks, sectors, or mutual funds", json_schema_extra={"intake_required": True})
+    horizon: Literal["short", "medium", "long"] | None = Field(default=None, description="Investment horizon — short (< 1 year), medium (1-5 years), or long (5+ years)", json_schema_extra={"intake_required": True})
     risk_signals: list[str] = Field(default_factory=list, description="Raw risk concerns noted during intake")
     questions_asked: list[str] = Field(default_factory=list, description="Questions already asked, to avoid repetition")
     intake_complete: bool = False
@@ -33,6 +34,26 @@ class MarketSnapshot(BaseModel):
     # Bounded risk signal — NOT a crash prediction
     news_signal: str | None = None   # "elevated" | "normal" | "low"
     research_summary: str | None = None
+
+
+class GainProjection(BaseModel):
+    """Projected gain for a single investment source."""
+    source: str
+    principal: float
+    annual_rate_pct: float
+    years: int
+    final_value: float
+    total_gain: float
+
+
+class InvestmentPlan(BaseModel):
+    """Complete investment plan with gains from all sources."""
+    allocations: list[GainProjection] = Field(default_factory=list)
+    total_principal: float = 0.0
+    total_final_value: float = 0.0
+    total_gain: float = 0.0
+    years: int = 0
+    summary: str | None = None
 
 
 class AllocationLine(BaseModel):
@@ -50,8 +71,8 @@ class AgentState(BaseModel):
     """
     thread_id: str
     profile: Profile = Field(default_factory=Profile)
-    horizon: str | None = None       
     market: MarketSnapshot = Field(default_factory=MarketSnapshot)
+    investment_plan: InvestmentPlan = Field(default_factory=InvestmentPlan)
     research_consent: bool | None = None
     draft_allocation: list[AllocationLine] = Field(default_factory=list)
     confirmed: bool = False

@@ -3,6 +3,7 @@ from .stocks import get_stock_price
 from .bullion import get_gold_silver_price
 from .fd_rates import get_fd_rates
 from .news import search_market_news
+from .calculator import split_investment
 
 __all__ = [
     "get_mutual_fund_nav",
@@ -10,4 +11,7 @@ __all__ = [
     "get_gold_silver_price",
     "get_fd_rates",
     "search_market_news",
+    "split_investment",
 ]
+
+
