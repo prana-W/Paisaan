@@ -136,6 +136,107 @@ def _check_gains_consent(state: dict) -> str:
     return END
 
 
+# ── Execute consent (after calculating gains, before mock payment) ─────────
+
+def show_gains_node(state: dict) -> dict:
+    import json
+    gains_messages = state.get("gains_messages", [])
+    messages = list(state.get("messages", []))
+
+    tool_result = None
+    for msg in gains_messages:
+        if hasattr(msg, "type") and msg.type == "tool":
+            try:
+                raw = msg.content
+                if isinstance(raw, str):
+                    tool_result = json.loads(raw)
+                elif isinstance(raw, dict):
+                    tool_result = raw
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+    llm_summary = ""
+    for msg in reversed(gains_messages):
+        if hasattr(msg, "type") and msg.type == "ai":
+            if not (hasattr(msg, "tool_calls") and msg.tool_calls):
+                content = msg.content if hasattr(msg, "content") else str(msg)
+                if isinstance(content, list):
+                    parts = []
+                    for block in content:
+                        if isinstance(block, str):
+                            parts.append(block)
+                        elif isinstance(block, dict):
+                            parts.append(block.get("text", ""))
+                    llm_summary = "".join(parts)
+                else:
+                    llm_summary = str(content)
+                break
+
+    parts = []
+
+    if tool_result and "allocations" in tool_result:
+        parts.append("## 📊 Your Investment Plan\n")
+        parts.append(f"**Total Investment:** ₹{tool_result['total_principal']:,.2f}")
+        parts.append(f"**Investment Duration:** {tool_result['years']} years")
+        parts.append(f"**Projected Final Value:** ₹{tool_result['total_final_value']:,.2f}")
+        parts.append(f"**Total Projected Gain:** ₹{tool_result['total_gain']:,.2f} "
+                      f"({tool_result.get('total_gain_pct', 0):.1f}%)\n")
+
+        parts.append("### Allocation Breakdown\n")
+        parts.append("| Source | Investment (₹) | Annual Rate | Final Value (₹) | Gain (₹) | Gain % |")
+        parts.append("|--------|---------------|-------------|-----------------|----------|--------|")
+        for alloc in tool_result["allocations"]:
+            parts.append(
+                f"| {alloc['source']} "
+                f"| {alloc['principal']:,.2f} "
+                f"| {alloc['annual_rate_pct']}% "
+                f"| {alloc['final_value']:,.2f} "
+                f"| {alloc['total_gain']:,.2f} "
+                f"| {alloc['gain_pct']}% |"
+            )
+        parts.append("")
+
+    if llm_summary:
+        parts.append("### Analysis\n")
+        parts.append(llm_summary)
+
+    detailed_message = "\n".join(parts) if parts else "Investment plan calculation complete."
+    messages.append({"role": "assistant", "content": detailed_message})
+
+    return {"messages": messages}
+
+
+def ask_execute_consent_node(state: dict) -> dict:
+    messages = list(state.get("messages", []))
+
+    question = (
+        "Are you satisfied with this investment plan?\n\n"
+        "If yes, we can proceed to execute the plan and fund your virtual wallet."
+    )
+
+    answer = interrupt({"type": "question", "text": question})
+
+    return {
+        **state,
+        "messages": messages + [
+            {"role": "assistant", "content": question},
+            {"role": "user", "content": str(answer)},
+        ],
+    }
+
+
+def parse_execute_consent_node(state: dict) -> dict:
+    messages = state.get("messages", [])
+    user_answer = messages[-1]["content"] if messages else ""
+    return {**state, "execute_consent": _parse_user_consent(user_answer)}
+
+
+def _check_execute_consent(state: dict) -> str:
+    if state.get("execute_consent") is True:
+        return END  # We'll update this to payment_subgraph later
+    return END
+
+
 # ── Graph builder ───────────────────────────────────────────────────────────
 
 
@@ -150,6 +251,10 @@ def build_graph(checkpointer):
     builder.add_node("ask_gains_consent", ask_gains_consent_node)
     builder.add_node("parse_gains_consent", parse_gains_consent_node)
     builder.add_node("gains_subgraph", build_gains_subgraph())
+    
+    builder.add_node("show_gains", show_gains_node)
+    builder.add_node("ask_execute_consent", ask_execute_consent_node)
+    builder.add_node("parse_execute_consent", parse_execute_consent_node)
 
     # Wiring
     builder.add_edge(START, "intake_subgraph")
@@ -169,8 +274,13 @@ def build_graph(checkpointer):
         END: END,
     })
 
-    builder.add_edge("gains_subgraph", END)
+    builder.add_edge("gains_subgraph", "show_gains")
+    builder.add_edge("show_gains", "ask_execute_consent")
+    builder.add_edge("ask_execute_consent", "parse_execute_consent")
 
+    builder.add_conditional_edges("parse_execute_consent", _check_execute_consent, {
+        END: END,
+    })
     compiled = builder.compile(checkpointer=checkpointer)
     with open("paisaan_agent_mermaid.mmd", "w") as f:
         f.write(compiled.get_graph(xray=True).draw_mermaid())

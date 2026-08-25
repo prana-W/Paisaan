@@ -75,6 +75,7 @@ class AgentState(BaseModel):
     investment_plan: InvestmentPlan = Field(default_factory=InvestmentPlan)
     research_consent: bool | None = None
     gains_consent: bool | None = None
+    execute_consent: bool | None = None
     draft_allocation: list[AllocationLine] = Field(default_factory=list)
     confirmed: bool = False
     transaction_id: str | None = None
