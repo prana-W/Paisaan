@@ -70,6 +70,7 @@ class AgentState(BaseModel):
     Survives closed browser tabs and new HTTP connections.
     """
     thread_id: str
+    user_id: str | None = None
     profile: Profile = Field(default_factory=Profile)
     market: MarketSnapshot = Field(default_factory=MarketSnapshot)
     investment_plan: InvestmentPlan = Field(default_factory=InvestmentPlan)

@@ -170,6 +170,7 @@ def create_new_session(body: CreateSessionRequest, db: DBSession = Depends(get_d
 
     initial_state = {
         "thread_id": thread_id,
+        "user_id": user.id,
         "messages": [],
         "profile": {},
         "market": {},
@@ -224,43 +225,7 @@ def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeRespon
     status, payload, state = _stream_until_interrupt(graph, session_id, Command(resume=answer))
     update_session_status(db, session_id, status)
 
-    # Database logging for transactions
-    if state.values.get("payment_status") == "success" and not state.values.get("confirmed"):
-        gains_messages = state.values.get("gains_messages", [])
-        tool_result = None
-        for msg in gains_messages:
-            if hasattr(msg, "type") and msg.type == "tool":
-                try:
-                    raw = msg.content
-                    if isinstance(raw, str):
-                        tool_result = json.loads(raw)
-                    elif isinstance(raw, dict):
-                        tool_result = raw
-                except (json.JSONDecodeError, TypeError):
-                    pass
-        
-        if tool_result and "allocations" in tool_result:
-            user_id = session.user_id
-            for alloc in tool_result["allocations"]:
-                txn = Transaction(
-                    id=str(uuid.uuid4()),
-                    user_id=user_id,
-                    thread_id=session_id,
-                    action="buy",
-                    source=alloc.get("source", "Unknown"),
-                    amount=alloc.get("principal", 0.0),
-                    percent_allocation=alloc.get("percent", 0.0),
-                    status="success",
-                    reasoning="Allocated as part of the Paisaan virtual investment plan."
-                )
-                db.add(txn)
-            db.commit()
-            
-            # Update the graph state to prevent duplicate logging
-            graph.update_state(
-                {"configurable": {"thread_id": session_id}},
-                {"confirmed": True}
-            )
+    # Database logging for transactions has been moved to the execute_investment_node inside the graph.
 
     if payload:
         # Graph paused on an interrupt — return the interrupt question

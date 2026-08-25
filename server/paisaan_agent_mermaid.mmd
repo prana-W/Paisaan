@@ -12,6 +12,7 @@ graph TD;
 	show_gains(show_gains)
 	ask_execute_consent(ask_execute_consent)
 	parse_execute_consent(parse_execute_consent)
+	payment_subgraph(payment_subgraph)
 	__end__([<p>__end__</p>]):::last
 	__start__ --> intake_subgraph\3a__start__;
 	ask_execute_consent --> parse_execute_consent;
@@ -21,13 +22,13 @@ graph TD;
 	intake_subgraph\3a__end__ --> ask_research_consent;
 	market_subgraph\3astore_research --> ask_gains_consent;
 	parse_execute_consent -.-> __end__;
-	parse_execute_consent -.-> payment_subgraph\3ainitiate_payment;
+	parse_execute_consent -.-> payment_subgraph;
 	parse_gains_consent -.-> __end__;
 	parse_gains_consent -.-> gains_subgraph\3a__start__;
 	parse_research_consent -.-> __end__;
 	parse_research_consent -.-> market_subgraph\3a__start__;
 	show_gains --> ask_execute_consent;
-	payment_subgraph\3averify_payment --> __end__;
+	payment_subgraph --> __end__;
 	subgraph intake_subgraph
 	intake_subgraph\3a__start__(<p>__start__</p>)
 	intake_subgraph\3aintake(intake)
@@ -55,11 +56,6 @@ graph TD;
 	gains_subgraph\3agains_planner -.-> gains_subgraph\3a__end__;
 	gains_subgraph\3agains_planner -.-> gains_subgraph\3atools;
 	gains_subgraph\3atools --> gains_subgraph\3agains_planner;
-	end
-	subgraph payment_subgraph
-	payment_subgraph\3ainitiate_payment(initiate_payment)
-	payment_subgraph\3averify_payment(verify_payment)
-	payment_subgraph\3ainitiate_payment --> payment_subgraph\3averify_payment;
 	end
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0

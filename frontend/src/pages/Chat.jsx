@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useSession } from '@/hooks/useSession';
+import { useRazorpay } from '@/hooks/useRazorpay';
 import { getSessions, deleteSession } from '@/utils/api';
 import {
     Send, RotateCcw, TrendingUp, Loader2, AlertCircle,
@@ -265,7 +266,15 @@ export default function Chat() {
 
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
-    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+    
+    const { processPayment, isProcessing: isProcessingPayment } = useRazorpay(userId, profile);
+    const [fundAmount, setFundAmount] = useState('');
+
+    useEffect(() => {
+        if (payload?.type === 'payment_required') {
+            setFundAmount((payload.shortfall || 10000).toString());
+        }
+    }, [payload]);
 
     const fetchSessions = async () => {
         try {
@@ -301,80 +310,6 @@ export default function Chat() {
         return () => window.removeEventListener('toggle-sidebar', handleToggle);
     }, []);
 
-    const handleRazorpayPayment = async (paymentAmount = 10000) => { // Default to 10k mock funding
-        if (!window.Razorpay) {
-            showNotification('Razorpay SDK failed to load', 'error');
-            return;
-        }
-
-        setIsProcessingPayment(true);
-        try {
-            // 1. Create order
-            const orderRes = await fetch('http://localhost:9000/api/v1/wallet/create-order', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: userId, amount: paymentAmount })
-            });
-            const orderData = await orderRes.json();
-            if (!orderRes.ok) throw new Error(orderData.detail || 'Failed to create order');
-
-            // 2. Open Razorpay checkout
-            const options = {
-                key: orderData.key_id,
-                amount: orderData.amount * 100,
-                currency: orderData.currency,
-                name: "Paisaan Wallet",
-                description: "Virtual Portfolio Funding",
-                order_id: orderData.order_id,
-                handler: async function (response) {
-                    try {
-                        // 3. Verify payment
-                        const verifyRes = await fetch('http://localhost:9000/api/v1/wallet/verify-payment', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                razorpay_order_id: response.razorpay_order_id,
-                                razorpay_payment_id: response.razorpay_payment_id,
-                                razorpay_signature: response.razorpay_signature,
-                                user_id: userId
-                            })
-                        });
-                        const verifyData = await verifyRes.json();
-                        if (!verifyRes.ok) throw new Error(verifyData.detail || 'Payment verification failed');
-
-                        showNotification('Wallet funded successfully!', 'success');
-                        // 4. Resume LangGraph with success
-                        const txnId = response.razorpay_payment_id || 'success';
-                        sendAnswer(`Payment of ₹${paymentAmount.toLocaleString('en-IN')} made successfully. Transaction ID: ${txnId}`);
-                    } catch (err) {
-                        showNotification(err.message, 'error');
-                        sendAnswer('failed');
-                    }
-                },
-                prefill: {
-                    name: profile?.name || "Test User",
-                },
-                theme: { color: "#3399cc" },
-                modal: {
-                    ondismiss: function() {
-                        showNotification('Payment cancelled', 'error');
-                        sendAnswer('failed');
-                    }
-                }
-            };
-            const rzp = new window.Razorpay(options);
-            rzp.on('payment.failed', function (response) {
-                showNotification(response.error.description, 'error');
-                sendAnswer('failed');
-            });
-            rzp.open();
-        } catch (err) {
-            showNotification(err.message, 'error');
-            sendAnswer('failed');
-        } finally {
-            setIsProcessingPayment(false);
-        }
-    };
 
     useEffect(() => {
         if (payload?.type === 'payment_required') {
@@ -568,8 +503,16 @@ export default function Chat() {
                                             <div className="p-5 bg-[var(--card)] border border-[var(--border)] rounded-2xl text-center space-y-4 max-w-sm w-full shadow-lg">
                                                 <div className="space-y-1">
                                                     <div className="text-sm font-medium text-[var(--muted-foreground)]">Funding Required</div>
-                                                    <div className="text-3xl font-bold text-[var(--foreground)]">₹{(payload.amount || 10000).toLocaleString('en-IN')}</div>
-                                                    <p className="text-xs text-[var(--muted-foreground)] mt-2">To execute your personalized portfolio plan, please fund your virtual wallet with the required amount.</p>
+                                                    <p className="text-xs text-[var(--muted-foreground)] mt-2">Your wallet is short by ₹{(payload.shortfall || 10000).toLocaleString('en-IN')}. Please add funds to proceed.</p>
+                                                    <div className="mt-4 flex items-center justify-center gap-1 text-3xl font-bold text-[var(--foreground)]">
+                                                        <span>₹</span>
+                                                        <input 
+                                                            type="number" 
+                                                            value={fundAmount}
+                                                            onChange={(e) => setFundAmount(e.target.value)}
+                                                            className="w-32 bg-transparent border-b border-[var(--border)] focus:border-[var(--primary)] outline-none text-center"
+                                                        />
+                                                    </div>
                                                 </div>
                                                 <div className="flex gap-3 mt-4">
                                                     <button 
@@ -579,10 +522,24 @@ export default function Chat() {
                                                         }}
                                                         className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-[var(--surface-2)] active:scale-[0.98] border border-[var(--border)] text-[var(--foreground)]"
                                                     >
-                                                        Decline
+                                                        Cancel
                                                     </button>
                                                     <button 
-                                                        onClick={() => handleRazorpayPayment(payload.amount || 10000)}
+                                                        onClick={async () => {
+                                                            const amt = parseFloat(fundAmount);
+                                                            if (isNaN(amt) || amt <= 0) {
+                                                                showNotification("Please enter a valid amount", "error");
+                                                                return;
+                                                            }
+                                                            try {
+                                                                const txnId = await processPayment(amt);
+                                                                showNotification('Wallet funded successfully!', 'success');
+                                                                sendAnswer(`Payment of ₹${amt.toLocaleString('en-IN')} made successfully. Transaction ID: ${txnId}`);
+                                                            } catch(err) {
+                                                                if (err.message) showNotification(err.message, 'error');
+                                                                sendAnswer('failed');
+                                                            }
+                                                        }}
                                                         className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-95 active:scale-[0.98] bg-[#3399cc] text-white"
                                                     >
                                                         Pay via Razorpay
