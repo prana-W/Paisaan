@@ -313,11 +313,7 @@ export default function Chat() {
     }, []);
 
 
-    useEffect(() => {
-        if (payload?.type === 'payment_required') {
-            handleRazorpayPayment();
-        }
-    }, [payload]);
+    // Removed broken auto-payment useEffect
 
     const handleStart = (customId) => {
         setSessionStarted(true);

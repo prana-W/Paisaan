@@ -10,10 +10,12 @@ graph TD;
 	ask_gains_consent(ask_gains_consent)
 	parse_gains_consent(parse_gains_consent)
 	show_gains(show_gains)
+	ask_execute_consent(ask_execute_consent)
 	parse_execute_consent(parse_execute_consent)
 	payment_subgraph(payment_subgraph)
 	__end__([<p>__end__</p>]):::last
 	__start__ --> intake_subgraph\3a__start__;
+	ask_execute_consent --> parse_execute_consent;
 	ask_gains_consent --> parse_gains_consent;
 	ask_research_consent --> parse_research_consent;
 	gains_subgraph\3a__end__ --> show_gains;
@@ -25,7 +27,7 @@ graph TD;
 	parse_gains_consent -.-> gains_subgraph\3a__start__;
 	parse_research_consent -.-> __end__;
 	parse_research_consent -.-> market_subgraph\3a__start__;
-	show_gains --> parse_execute_consent;
+	show_gains --> ask_execute_consent;
 	payment_subgraph --> __end__;
 	subgraph intake_subgraph
 	intake_subgraph\3a__start__(<p>__start__</p>)

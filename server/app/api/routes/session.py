@@ -228,27 +228,38 @@ def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeRespon
     # Database logging for transactions has been moved to the execute_investment_node inside the graph.
 
     if payload:
-        # Graph paused on an interrupt — return the interrupt question
-        message = payload.get("text") if isinstance(payload, dict) else str(payload)
+        interrupt_text = payload.get("text") if isinstance(payload, dict) else str(payload)
     else:
-        # Graph ran to completion — return the last assistant message from state
-        # (e.g. the market research summary written by compiler_node)
-        messages = state.values.get("messages", [])
-        last_ai = next(
-            (m for m in reversed(messages) if (
-                (isinstance(m, dict) and m.get("role") == "assistant") or
-                (hasattr(m, "type") and m.type == "ai")
-            )),
-            None,
-        )
-        if last_ai:
-            message = last_ai.get("content") if isinstance(last_ai, dict) else last_ai.content
+        interrupt_text = ""
+
+    messages = state.values.get("messages", [])
+    last_ai = next(
+        (m for m in reversed(messages) if (
+            (isinstance(m, dict) and m.get("role") == "assistant") or
+            (hasattr(m, "type") and m.type == "ai")
+        )),
+        None,
+    )
+    
+    last_ai_content = ""
+    if last_ai:
+        last_ai_content = last_ai.get("content") if isinstance(last_ai, dict) else last_ai.content
+    elif not payload:
+        market = state.values.get("market", {})
+        last_ai_content = (
+            market.get("research_summary") if isinstance(market, dict)
+            else getattr(market, "research_summary", None)
+        ) or "Research complete. ✅"
+
+    if interrupt_text and last_ai_content:
+        if interrupt_text not in last_ai_content:
+            message = f"{last_ai_content}\n\n---\n{interrupt_text}"
         else:
-            market = state.values.get("market", {})
-            message = (
-                market.get("research_summary") if isinstance(market, dict)
-                else getattr(market, "research_summary", None)
-            ) or "Research complete. ✅"
+            message = last_ai_content
+    elif interrupt_text:
+        message = interrupt_text
+    else:
+        message = last_ai_content
 
     return ResumeResponse(
         thread_id=session_id,
