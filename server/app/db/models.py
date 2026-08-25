@@ -71,10 +71,13 @@ class Transaction(Base):
 
     id = Column(String, primary_key=True)           # UUID
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    thread_id = Column(String, nullable=False)      # The session that created this
     action = Column(String, nullable=False)         # buy | sell | failed
+    source = Column(String, nullable=False)         # e.g. "HDFC Balanced Fund", "Gold"
     amount = Column(Float, nullable=False)
+    percent_allocation = Column(Float, nullable=True)
     status = Column(String, nullable=False)         # success | failed | pending
-    reasoning = Column(Text, nullable=False)        # mandatory — ties to planner reasoning
+    reasoning = Column(Text, nullable=False)        # tied to planner reasoning
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="transactions")
