@@ -13,7 +13,11 @@ def get_fd_rates() -> str:
     Returns a textual summary of current FD rates from top banks.
     """
     try:
-        results = DDGS().text("latest FD interest rates India SBI HDFC ICICI", max_results=3)
+        results = DDGS().text(
+            "latest FD interest rates India SBI HDFC ICICI site:paisabazaar.com OR site:bankbazaar.com OR site:cleartax.in", 
+            max_results=3, 
+            safesearch="strict"
+        )
         if not results:
             return "Could not fetch latest FD rates at this time. Assume a rough average of 6.5% - 7.5% p.a. for major banks."
             
