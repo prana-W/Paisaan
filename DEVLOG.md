@@ -1,5 +1,12 @@
 # Paisaan Development Log
 
+## August 26, 2026 — Phase 5: Wallet & Razorpay Mock Integration
+- **Execution Consent**: Added a 3rd Human-in-the-Loop checkpoint (`execute_consent`) to ask the user if they are satisfied with the calculated investment plan before executing the transaction.
+- **Wallet Models**: Updated `models.py` by adding a `wallet_balance` field to the `User` table, and created a `PaymentOrder` table to track funding attempts.
+- **Actual Razorpay API**: Integrated the `razorpay` Python SDK to create real test-mode orders (`/api/v1/wallet/create-order`) and strictly verify the cryptographic signature of completed payments (`/api/v1/wallet/verify-payment`) using keys stored in `.env`.
+- **Payment Subgraph**: Built `payment_subgraph.py` which pauses the backend LangGraph with a `payment_required` interrupt, waits for frontend fulfillment, and parses the outcome (success/failure) back into the `AgentState`.
+- **Frontend Interception**: Modified `Chat.jsx` and `useSession.js` to detect the `payment_required` interrupt payload from the LangGraph session. When detected, the UI automatically triggers the Razorpay Checkout modal, captures the user's mock payment, verifies it with the backend, and silently resumes the LangGraph flow with the result.
+
 ## August 25, 2026 — Phase 4: Gains Subgraph & Full Flow Integration
 - **State & Routing Updates**: Expanded `AgentState` with `gains_consent` and `gains_messages` to manage a second isolated LLM chat context for calculations.
 - **Calculator Tool**: Implemented `split_investment` as a strict allocation engine that calculates multi-source compound interest and ensures allocations sum to exactly 100%.

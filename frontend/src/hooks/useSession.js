@@ -12,6 +12,7 @@ export function useSession() {
     const [profile, setProfile] = useState({});
     const [status, setStatus] = useState('idle');
     const [error, setError] = useState(null);
+    const [payload, setPayload] = useState(null);
 
     const loading = useRef(false);
 
@@ -31,6 +32,7 @@ export function useSession() {
         setError(null);
         setMessages([]);
         setProfile({});
+        setPayload(null);
 
         try {
             const data = await createSession(userId, customThreadId || null);
@@ -39,6 +41,7 @@ export function useSession() {
             setUserId(data.user_id);
             if (data.message) addMessage('assistant', data.message);
             setStatus(data.status);
+            setPayload(data.payload);
         } catch (err) {
             setError(err.message || 'Failed to start session');
             setStatus('error');
@@ -54,6 +57,7 @@ export function useSession() {
         setError(null);
         setMessages([]);
         setProfile({});
+        setPayload(null);
 
         try {
             const data = await getSessionState(customThreadId);
@@ -65,6 +69,7 @@ export function useSession() {
                 setUserId(startData.user_id);
                 if (startData.message) addMessage('assistant', startData.message);
                 setStatus(startData.status);
+                setPayload(startData.payload);
                 return;
             }
 
@@ -81,7 +86,6 @@ export function useSession() {
                 };
             });
 
-            // Attach tool_calls from state to the most recent assistant message, if any
             if (data.tool_calls && data.tool_calls.length > 0) {
                 for (let i = restored.length - 1; i >= 0; i--) {
                     if (restored[i].role === 'assistant') {
@@ -91,9 +95,6 @@ export function useSession() {
                 }
             }
 
-            // If the session has a pending question but it isn't in the message
-            // log yet (e.g. first question before any answer), append it so it
-            // always appears in the UI.
             if (data.pending_question) {
                 const alreadyPresent = restored.some(
                     m => m.role === 'assistant' && m.content === data.pending_question.text
@@ -110,6 +111,7 @@ export function useSession() {
             setMessages(restored);
             setProfile(data.profile || {});
             setStatus(data.status || 'interrupted');
+            setPayload(data.pending_question || null);
         } catch (err) {
             setError(err.message || 'Failed to load session');
             setStatus('error');
@@ -124,6 +126,7 @@ export function useSession() {
         addMessage('user', text);
         setStatus('loading');
         setError(null);
+        setPayload(null);
 
         try {
             const data = await resumeSession(threadId, text);
@@ -136,6 +139,7 @@ export function useSession() {
                 }]);
             }
             setStatus(data.status);
+            setPayload(data.payload);
         } catch (err) {
             setError(err.message || 'Something went wrong. Please try again.');
             setStatus('error');
@@ -154,6 +158,7 @@ export function useSession() {
         setProfile({});
         setStatus('idle');
         setError(null);
+        setPayload(null);
     }, []);
 
     return {
@@ -163,6 +168,7 @@ export function useSession() {
         profile,
         status,
         error,
+        payload,
         isLoading: status === 'loading',
         isComplete: status === 'complete',
         isInterrupted: status === 'interrupted',

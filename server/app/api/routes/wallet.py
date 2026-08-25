@@ -6,15 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.db.models import User, PaymentOrder
+from app.core.config import get_settings
 
 router = APIRouter()
-
-# For a real implementation, you would load these from config/env
-RAZORPAY_KEY_ID = "rzp_test_dummy_key"
-RAZORPAY_KEY_SECRET = "dummy_secret"
+settings = get_settings()
 
 # Initialize razorpay client
-client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
+client = razorpay.Client(auth=(settings.razorpay_key_id, settings.razorpay_key_secret))
 
 class CreateOrderRequest(BaseModel):
     user_id: str
@@ -41,22 +39,14 @@ def create_order(request: CreateOrderRequest, db: Session = Depends(get_db)):
 
     amount_in_paise = int(request.amount * 100)
     
-    # In a real app, you would create an order with Razorpay
-    # try:
-    #     order = client.order.create({
-    #         "amount": amount_in_paise,
-    #         "currency": "INR",
-    #         "payment_capture": "1"
-    #     })
-    # except Exception as e:
-    #     raise HTTPException(status_code=400, detail=str(e))
-    
-    # Mocking order for development without real keys
-    order = {
-        "id": f"order_{uuid.uuid4().hex[:10]}",
-        "amount": amount_in_paise,
-        "currency": "INR"
-    }
+    try:
+        order = client.order.create({
+            "amount": amount_in_paise,
+            "currency": "INR",
+            "payment_capture": "1"
+        })
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     db_order = PaymentOrder(
         id=str(uuid.uuid4()),
@@ -85,17 +75,16 @@ def verify_payment(request: VerifyPaymentRequest, db: Session = Depends(get_db))
     if db_order.status == "success":
         return {"status": "success", "message": "Already verified"}
 
-    # In a real app, verify signature:
-    # try:
-    #     client.utility.verify_payment_signature({
-    #         'razorpay_order_id': request.razorpay_order_id,
-    #         'razorpay_payment_id': request.razorpay_payment_id,
-    #         'razorpay_signature': request.razorpay_signature
-    #     })
-    # except razorpay.errors.SignatureVerificationError:
-    #     raise HTTPException(status_code=400, detail="Invalid signature")
+    try:
+        client.utility.verify_payment_signature({
+            'razorpay_order_id': request.razorpay_order_id,
+            'razorpay_payment_id': request.razorpay_payment_id,
+            'razorpay_signature': request.razorpay_signature
+        })
+    except razorpay.errors.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Invalid signature")
 
-    # Mock successful verification
+    # Verification successful
     db_order.status = "success"
     
     user = db.query(User).filter(User.id == db_order.user_id).first()
