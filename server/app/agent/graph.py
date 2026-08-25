@@ -3,6 +3,7 @@ from langgraph.graph import StateGraph, START, END
 from app.agent.subgraphs.intake_subgraph import build_intake_subgraph
 from app.agent.subgraphs.market_subgraph import build_market_subgraph
 from app.agent.subgraphs.gains_subgraph import build_gains_subgraph
+from app.agent.subgraphs.payment_subgraph import build_payment_subgraph
 from app.core.logging import get_logger
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -233,7 +234,7 @@ def parse_execute_consent_node(state: dict) -> dict:
 
 def _check_execute_consent(state: dict) -> str:
     if state.get("execute_consent") is True:
-        return END  # We'll update this to payment_subgraph later
+        return "payment_subgraph"
     return END
 
 
@@ -255,6 +256,7 @@ def build_graph(checkpointer):
     builder.add_node("show_gains", show_gains_node)
     builder.add_node("ask_execute_consent", ask_execute_consent_node)
     builder.add_node("parse_execute_consent", parse_execute_consent_node)
+    builder.add_node("payment_subgraph", build_payment_subgraph())
 
     # Wiring
     builder.add_edge(START, "intake_subgraph")
@@ -279,8 +281,11 @@ def build_graph(checkpointer):
     builder.add_edge("ask_execute_consent", "parse_execute_consent")
 
     builder.add_conditional_edges("parse_execute_consent", _check_execute_consent, {
+        "payment_subgraph": "payment_subgraph",
         END: END,
     })
+
+    builder.add_edge("payment_subgraph", END)
     compiled = builder.compile(checkpointer=checkpointer)
     with open("paisaan_agent_mermaid.mmd", "w") as f:
         f.write(compiled.get_graph(xray=True).draw_mermaid())

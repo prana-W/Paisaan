@@ -176,6 +176,8 @@ def create_new_session(body: CreateSessionRequest, db: DBSession = Depends(get_d
         "investment_plan": {},
         "research_consent": None,
         "gains_consent": None,
+        "execute_consent": None,
+        "payment_status": None,
         "draft_allocation": [],
         "confirmed": False,
         "transaction_id": None,

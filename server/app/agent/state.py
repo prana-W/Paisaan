@@ -76,6 +76,7 @@ class AgentState(BaseModel):
     research_consent: bool | None = None
     gains_consent: bool | None = None
     execute_consent: bool | None = None
+    payment_status: str | None = None
     draft_allocation: list[AllocationLine] = Field(default_factory=list)
     confirmed: bool = False
     transaction_id: str | None = None

@@ -7,12 +7,12 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.routes import session, wallet
 from app.core.config import get_settings
 from app.core.logging import setup_logging, get_logger
 from app.db.session import init_db
 from app.agent.checkpointer import init_checkpointer
 from app.agent.graph import init_graph
-from app.api.routes.session import router as session_router
 
 
 logger = get_logger(__name__)
@@ -70,7 +70,9 @@ app.add_middleware(
 )
 
 
-app.include_router(session_router, prefix="/api/v1", tags=["session"])
+# Include routers
+app.include_router(session.router, prefix="/api/v1", tags=["Session"])
+app.include_router(wallet.router, prefix="/api/v1", tags=["Wallet"])
 
 
 @app.get("/health", tags=["meta"])
