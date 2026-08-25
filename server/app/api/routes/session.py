@@ -306,9 +306,6 @@ def get_portfolio(user_id: str, db: DBSession = Depends(get_db)):
     transactions = db.query(Transaction).filter(
         Transaction.user_id == user_id,
         Transaction.status == "success"
-    ).order_create_at_desc = db.query(Transaction).filter(
-        Transaction.user_id == user_id,
-        Transaction.status == "success"
     ).order_by(Transaction.created_at.desc()).all()
     
     holdings_map = {}

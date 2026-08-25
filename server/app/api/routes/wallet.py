@@ -23,6 +23,7 @@ class CreateOrderResponse(BaseModel):
     amount: float
     currency: str
     id: str
+    key_id: str
 
 class VerifyPaymentRequest(BaseModel):
     razorpay_order_id: str
@@ -62,7 +63,8 @@ def create_order(request: CreateOrderRequest, db: Session = Depends(get_db)):
         order_id=order["id"],
         amount=request.amount,
         currency="INR",
-        id=db_order.id
+        id=db_order.id,
+        key_id=settings.razorpay_key_id
     )
 
 

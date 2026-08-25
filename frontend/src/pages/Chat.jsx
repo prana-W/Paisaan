@@ -320,7 +320,7 @@ export default function Chat() {
 
             // 2. Open Razorpay checkout
             const options = {
-                key: "rzp_test_dummy_key", // Will be overridden by backend or just used for mock
+                key: orderData.key_id,
                 amount: orderData.amount * 100,
                 currency: orderData.currency,
                 name: "Paisaan Wallet",
