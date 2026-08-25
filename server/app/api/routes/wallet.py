@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.db.models import User, PaymentOrder
+from app.db.crud import get_or_create_user
+from app.core.config import get_settings
 from app.core.config import get_settings
 
 router = APIRouter()
@@ -15,7 +17,7 @@ settings = get_settings()
 client = razorpay.Client(auth=(settings.razorpay_key_id, settings.razorpay_key_secret))
 
 class CreateOrderRequest(BaseModel):
-    user_id: str
+    user_id: str | None = None
     amount: float  # Amount in INR
 
 class CreateOrderResponse(BaseModel):
@@ -24,6 +26,7 @@ class CreateOrderResponse(BaseModel):
     currency: str
     id: str
     key_id: str
+    user_id: str
 
 class VerifyPaymentRequest(BaseModel):
     razorpay_order_id: str
@@ -34,9 +37,9 @@ class VerifyPaymentRequest(BaseModel):
 
 @router.post("/wallet/create-order", response_model=CreateOrderResponse)
 def create_order(request: CreateOrderRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == request.user_id).first()
+    user = get_or_create_user(db, request.user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="Could not create or find user")
 
     amount_in_paise = int(request.amount * 100)
     
@@ -64,7 +67,8 @@ def create_order(request: CreateOrderRequest, db: Session = Depends(get_db)):
         amount=request.amount,
         currency="INR",
         id=db_order.id,
-        key_id=settings.razorpay_key_id
+        key_id=settings.razorpay_key_id,
+        user_id=user.id
     )
 
 

@@ -27,6 +27,11 @@ export const useRazorpay = (userId, profile = null) => {
                 const orderData = await orderRes.json();
                 if (!orderRes.ok) throw new Error(orderData.detail || 'Failed to create order');
 
+                // Save the user_id if it was created on the backend
+                if (orderData.user_id && !userId) {
+                    sessionStorage.setItem('paisaan_user_id', orderData.user_id);
+                }
+
                 // 2. Open Razorpay checkout
                 const options = {
                     key: orderData.key_id,

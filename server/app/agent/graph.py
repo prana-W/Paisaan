@@ -202,28 +202,20 @@ def show_gains_node(state: dict) -> dict:
         parts.append(llm_summary)
 
     detailed_message = "\n".join(parts) if parts else "Investment plan calculation complete."
-    messages.append({"role": "assistant", "content": detailed_message})
-
-    return {"messages": messages}
-
-
-def ask_execute_consent_node(state: dict) -> dict:
-    messages = list(state.get("messages", []))
-
+    
     question = (
         "Are you satisfied with this investment plan?\n\n"
         "If yes, we can proceed to execute the plan and fund your virtual wallet."
     )
+    
+    full_message = f"{detailed_message}\n\n---\n{question}"
 
     answer = interrupt({"type": "question", "text": question})
 
-    return {
-        **state,
-        "messages": messages + [
-            {"role": "assistant", "content": question},
-            {"role": "user", "content": str(answer)},
-        ],
-    }
+    messages.append({"role": "assistant", "content": full_message})
+    messages.append({"role": "user", "content": str(answer)})
+
+    return {"messages": messages}
 
 
 def parse_execute_consent_node(state: dict) -> dict:
@@ -254,7 +246,6 @@ def build_graph(checkpointer):
     builder.add_node("gains_subgraph", build_gains_subgraph())
     
     builder.add_node("show_gains", show_gains_node)
-    builder.add_node("ask_execute_consent", ask_execute_consent_node)
     builder.add_node("parse_execute_consent", parse_execute_consent_node)
     builder.add_node("payment_subgraph", build_payment_subgraph())
 
@@ -277,8 +268,7 @@ def build_graph(checkpointer):
     })
 
     builder.add_edge("gains_subgraph", "show_gains")
-    builder.add_edge("show_gains", "ask_execute_consent")
-    builder.add_edge("ask_execute_consent", "parse_execute_consent")
+    builder.add_edge("show_gains", "parse_execute_consent")
 
     builder.add_conditional_edges("parse_execute_consent", _check_execute_consent, {
         "payment_subgraph": "payment_subgraph",
