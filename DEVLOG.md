@@ -1,5 +1,10 @@
 # Paisaan Development Log
 
+## August 26, 2026 — Phase 6: Transactions & Portfolio Dashboard
+- **Database Transactions Logging**: Added new tracking columns (`thread_id`, `source`, `percent_allocation`) to the `Transaction` table. Modified the `_resume_session` controller to intercept successful payments, parse the investment allocations from the graph's history, and securely log each allocation as a separate `Transaction` record. Added an idempotency lock (`confirmed: True`) to the agent state to prevent duplicate logging.
+- **Portfolio API**: Created the `GET /api/v1/portfolio/{user_id}` endpoint. It scans the `Transaction` table, aggregates total investments, groups them by asset (`holdings`), and calculates the mock `current_value` with simulated slight gains (+5%).
+- **Portfolio UI**: Completely overhauled `Portfolio.jsx` to dynamically fetch and display real data. It now features beautiful StatCards (for Wallet Balance, Total Invested, Gain/Loss), a breakdown of current allocations, and a chronological history of all transactions, color-coded by action.
+
 ## August 26, 2026 — Phase 5: Wallet & Razorpay Mock Integration
 - **Execution Consent**: Added a 3rd Human-in-the-Loop checkpoint (`execute_consent`) to ask the user if they are satisfied with the calculated investment plan before executing the transaction.
 - **Wallet Models**: Updated `models.py` by adding a `wallet_balance` field to the `User` table, and created a `PaymentOrder` table to track funding attempts.

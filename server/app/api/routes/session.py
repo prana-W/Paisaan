@@ -210,6 +210,9 @@ def resume_session(session_id: str, body: ResumeRequest, db: DBSession = Depends
 
 
 def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeResponse:
+    import json
+    import uuid
+    from app.db.models import Transaction
     graph = get_graph()
     session = get_session(db, session_id)
     if not session:
@@ -220,6 +223,44 @@ def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeRespon
     from langgraph.types import Command
     status, payload, state = _stream_until_interrupt(graph, session_id, Command(resume=answer))
     update_session_status(db, session_id, status)
+
+    # Database logging for transactions
+    if state.values.get("payment_status") == "success" and not state.values.get("confirmed"):
+        gains_messages = state.values.get("gains_messages", [])
+        tool_result = None
+        for msg in gains_messages:
+            if hasattr(msg, "type") and msg.type == "tool":
+                try:
+                    raw = msg.content
+                    if isinstance(raw, str):
+                        tool_result = json.loads(raw)
+                    elif isinstance(raw, dict):
+                        tool_result = raw
+                except (json.JSONDecodeError, TypeError):
+                    pass
+        
+        if tool_result and "allocations" in tool_result:
+            user_id = session.user_id
+            for alloc in tool_result["allocations"]:
+                txn = Transaction(
+                    id=str(uuid.uuid4()),
+                    user_id=user_id,
+                    thread_id=session_id,
+                    action="buy",
+                    source=alloc.get("source", "Unknown"),
+                    amount=alloc.get("principal", 0.0),
+                    percent_allocation=alloc.get("percent", 0.0),
+                    status="success",
+                    reasoning="Allocated as part of the Paisaan virtual investment plan."
+                )
+                db.add(txn)
+            db.commit()
+            
+            # Update the graph state to prevent duplicate logging
+            graph.update_state(
+                {"configurable": {"thread_id": session_id}},
+                {"confirmed": True}
+            )
 
     if payload:
         # Graph paused on an interrupt — return the interrupt question
@@ -256,11 +297,56 @@ def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeRespon
 
 @router.get("/portfolio/{user_id}")
 def get_portfolio(user_id: str, db: DBSession = Depends(get_db)):
+    from app.db.models import Transaction, User
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    transactions = db.query(Transaction).filter(
+        Transaction.user_id == user_id,
+        Transaction.status == "success"
+    ).order_create_at_desc = db.query(Transaction).filter(
+        Transaction.user_id == user_id,
+        Transaction.status == "success"
+    ).order_by(Transaction.created_at.desc()).all()
+    
+    holdings_map = {}
+    for txn in transactions:
+        if txn.action == "buy":
+            if txn.source not in holdings_map:
+                holdings_map[txn.source] = {
+                    "source": txn.source,
+                    "invested": 0.0,
+                    "percent_allocation": txn.percent_allocation
+                }
+            holdings_map[txn.source]["invested"] += txn.amount
+            
+    holdings = list(holdings_map.values())
+    total_invested = sum(h["invested"] for h in holdings)
+    
+    # Mock current value slightly higher for demonstration
+    # In a real app, you would fetch live NAV/Prices for each holding
+    current_value = total_invested * 1.05 if total_invested > 0 else 0
+    gain_loss = current_value - total_invested
+    gain_loss_pct = (gain_loss / total_invested * 100) if total_invested > 0 else 0
+    
     return {
         "user_id": user_id,
-        "holdings": [],
-        "total_invested": 0,
-        "current_value": 0,
-        "gain_loss": 0,
-        "gain_loss_pct": 0,
+        "wallet_balance": user.wallet_balance,
+        "holdings": holdings,
+        "transactions": [
+            {
+                "id": t.id,
+                "date": t.created_at.isoformat(),
+                "action": t.action,
+                "source": t.source,
+                "amount": t.amount,
+                "percent": t.percent_allocation
+            } for t in transactions
+        ],
+        "total_invested": round(total_invested, 2),
+        "current_value": round(current_value, 2),
+        "gain_loss": round(gain_loss, 2),
+        "gain_loss_pct": round(gain_loss_pct, 2),
     }
