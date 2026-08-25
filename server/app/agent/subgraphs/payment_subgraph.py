@@ -11,46 +11,49 @@ logger = logging.getLogger(__name__)
 
 
 def initiate_payment_node(state: dict) -> dict:
-    """
-    Interrupts the graph to prompt the frontend to display the Razorpay payment UI.
-    """
+    import json
     messages = list(state.get("messages", []))
     
-    # In a real scenario, we would calculate the total investment amount from the plan
-    # For now, we just prompt the UI. The frontend is expected to intercept this.
-    prompt_msg = "Please complete the payment using the Razorpay interface to fund your virtual wallet."
+    gains_messages = state.get("gains_messages", [])
+    total_amount = 10000.0
+    for msg in gains_messages:
+        if hasattr(msg, "type") and msg.type == "tool":
+            try:
+                raw = msg.content
+                data = json.loads(raw) if isinstance(raw, str) else raw
+                if "total_principal" in data:
+                    total_amount = data["total_principal"]
+            except Exception:
+                pass
+                
+    prompt_msg = f"I'm ready to execute your personalized investment plan! We need to fund your virtual wallet with exactly ₹{total_amount:,.2f}."
     
-    # We use interrupt to pause execution and signal the frontend
     payment_response = interrupt({
         "type": "payment_required", 
         "text": prompt_msg,
-        "action": "trigger_razorpay"
+        "action": "trigger_razorpay",
+        "amount": total_amount
     })
     
     return {
         **state,
         "messages": messages + [
             {"role": "assistant", "content": prompt_msg},
-            # We record whatever the frontend sends back when it resumes the graph
             {"role": "user", "content": str(payment_response)}
         ]
     }
 
 
 def verify_payment_node(state: dict) -> dict:
-    """
-    Evaluates the response from the frontend Razorpay flow.
-    """
     messages = list(state.get("messages", []))
-    
-    # The last message is what the user (frontend) sent back when resuming
     user_response = messages[-1].get("content", "") if messages else ""
     
     if "success" in user_response.lower() or "pay_" in user_response.lower():
-        status_msg = "Payment received successfully! Your virtual wallet has been funded."
+        txn_id = user_response if "pay_" in user_response else "success"
+        status_msg = f"✅ Payment received successfully! Transaction ID: **{txn_id}**\n\nYour virtual wallet has been funded and your investments have been executed. Please view your **Portfolio** tab for a detailed breakdown."
         payment_status = "success"
     else:
-        status_msg = "Payment failed or was cancelled. No funds were added."
+        status_msg = "❌ Payment declined or failed. The execution flow has been safely aborted."
         payment_status = "failed"
         
     return {

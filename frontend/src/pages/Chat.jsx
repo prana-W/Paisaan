@@ -344,7 +344,8 @@ export default function Chat() {
 
                         showNotification('Wallet funded successfully!', 'success');
                         // 4. Resume LangGraph with success
-                        sendAnswer(response.razorpay_payment_id || 'success');
+                        const txnId = response.razorpay_payment_id || 'success';
+                        sendAnswer(`Payment of ₹${paymentAmount.toLocaleString('en-IN')} made successfully. Transaction ID: ${txnId}`);
                     } catch (err) {
                         showNotification(err.message, 'error');
                         sendAnswer('failed');
@@ -564,14 +565,29 @@ export default function Chat() {
 
                                     {payload?.type === 'payment_required' && !isProcessingPayment && (
                                         <div className="flex flex-col items-center gap-3 py-6 animate-bubble-in">
-                                            <div className="p-4 bg-[var(--card)] border border-[var(--border)] rounded-2xl text-center space-y-4 max-w-sm w-full">
-                                                <div className="text-sm font-medium text-[var(--foreground)]">Complete Funding</div>
-                                                <button 
-                                                    onClick={() => handleRazorpayPayment()}
-                                                    className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-95 active:scale-[0.98] bg-[#3399cc] text-white"
-                                                >
-                                                    Pay with Razorpay
-                                                </button>
+                                            <div className="p-5 bg-[var(--card)] border border-[var(--border)] rounded-2xl text-center space-y-4 max-w-sm w-full shadow-lg">
+                                                <div className="space-y-1">
+                                                    <div className="text-sm font-medium text-[var(--muted-foreground)]">Funding Required</div>
+                                                    <div className="text-3xl font-bold text-[var(--foreground)]">₹{(payload.amount || 10000).toLocaleString('en-IN')}</div>
+                                                    <p className="text-xs text-[var(--muted-foreground)] mt-2">To execute your personalized portfolio plan, please fund your virtual wallet with the required amount.</p>
+                                                </div>
+                                                <div className="flex gap-3 mt-4">
+                                                    <button 
+                                                        onClick={() => {
+                                                            showNotification('Payment declined', 'error');
+                                                            sendAnswer('failed');
+                                                        }}
+                                                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-[var(--surface-2)] active:scale-[0.98] border border-[var(--border)] text-[var(--foreground)]"
+                                                    >
+                                                        Decline
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleRazorpayPayment(payload.amount || 10000)}
+                                                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-95 active:scale-[0.98] bg-[#3399cc] text-white"
+                                                    >
+                                                        Pay via Razorpay
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     )}
