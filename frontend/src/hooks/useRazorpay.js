@@ -50,7 +50,7 @@ export const useRazorpay = (userId, profile = null) => {
                                     razorpay_order_id: response.razorpay_order_id,
                                     razorpay_payment_id: response.razorpay_payment_id,
                                     razorpay_signature: response.razorpay_signature,
-                                    user_id: userId
+                                    user_id: orderData.user_id || userId
                                 })
                             });
                             const verifyData = await verifyRes.json();

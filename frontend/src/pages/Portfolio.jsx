@@ -31,11 +31,12 @@ export default function Portfolio() {
 
     async function fetchPortfolio() {
         try {
-            if (!userId) {
+            const currentUserId = sessionStorage.getItem('paisaan_user_id');
+            if (!currentUserId) {
                 setLoading(false);
                 return;
             }
-            const result = await getPortfolio(userId);
+            const result = await getPortfolio(currentUserId);
             setData(result);
         } catch (err) {
             setError(err.message);
