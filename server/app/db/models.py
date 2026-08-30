@@ -60,7 +60,8 @@ class Investment(Base):
 
     # Financial details
     principal = Column(Float, nullable=False)               # ₹ amount invested at purchase
-    annual_rate_pct = Column(Float, nullable=False)         # expected annual return % used in projection
+    holding = Column(String, nullable=False)                 # holding metric (e.g. "₹2,450.50/stock", "7.5% p.a.", "₹6,800/g", "₹45.20 NAV")
+    annual_rate_pct = Column(Float, nullable=False, default=0.0) # expected annual return % used in projection
     years = Column(Integer, nullable=False)                 # investment horizon in years
 
     # Tracking

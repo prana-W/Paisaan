@@ -120,6 +120,7 @@ def create_investment(
     source: str,
     asset_type: str,
     principal: float,
+    holding: str,
     annual_rate_pct: float,
     years: int,
     notes: str | None = None,
@@ -132,6 +133,7 @@ def create_investment(
         source=source,
         asset_type=asset_type,
         principal=round(principal, 2),
+        holding=holding,
         annual_rate_pct=annual_rate_pct,
         years=years,
         current_value=round(principal, 2),  # starts equal to principal

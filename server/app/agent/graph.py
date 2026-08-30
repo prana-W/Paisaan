@@ -150,15 +150,16 @@ def _build_plan_markdown(investment_plan: dict) -> str:
         f"**Projected Final Value:** ₹{investment_plan['total_final_value']:,.2f}",
         f"**Total Projected Gain:** ₹{investment_plan['total_gain']:,.2f}\n",
         "### Allocation Breakdown\n",
-        "| Source | Investment (₹) | Annual Rate | Final Value (₹) | Gain (₹) |",
-        "|--------|---------------|-------------|-----------------|----------|",
+        "| Source | Investment (₹) | Holding | Final Value (₹) | Gain (₹) |",
+        "|--------|---------------|---------|-----------------|----------|",
     ]
 
     for alloc in investment_plan["allocations"]:
+        holding_display = alloc.get("holding") or f"{alloc.get('annual_rate_pct', 0)}% p.a."
         lines.append(
             f"| {alloc['source']} "
             f"| {alloc['principal']:,.2f} "
-            f"| {alloc['annual_rate_pct']}% "
+            f"| {holding_display} "
             f"| {alloc['final_value']:,.2f} "
             f"| {alloc['total_gain']:,.2f} |"
         )
@@ -231,7 +232,8 @@ def conclusion_node(state: dict) -> dict:
             "Your investment plan has been executed. Here's what was purchased:\n",
         ]
         for alloc in investment_plan["allocations"]:
-            lines.append(f"- **{alloc['source']}** — ₹{alloc['principal']:,.2f} @ {alloc['annual_rate_pct']}% p.a.")
+            holding_display = alloc.get("holding") or f"{alloc.get('annual_rate_pct', 0)}% p.a."
+            lines.append(f"- **{alloc['source']}** — ₹{alloc['principal']:,.2f} ({holding_display})")
         lines.extend([
             f"\n**Total Invested:** ₹{investment_plan['total_principal']:,.2f}",
             f"**Projected Value in {investment_plan['years']} years:** ₹{investment_plan['total_final_value']:,.2f}",

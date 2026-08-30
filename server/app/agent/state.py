@@ -40,7 +40,8 @@ class GainProjection(BaseModel):
     """Projected gain for a single investment source."""
     source: str
     principal: float
-    annual_rate_pct: float
+    holding: str = ""
+    annual_rate_pct: float = 0.0
     years: int
     final_value: float
     total_gain: float

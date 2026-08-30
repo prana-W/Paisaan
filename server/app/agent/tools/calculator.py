@@ -5,6 +5,19 @@ from langchain_core.tools import tool
 logger = logging.getLogger(__name__)
 
 
+def _infer_asset_type(source: str) -> str:
+    lower = source.lower()
+    for keyword, asset_type in [
+        ("mutual fund", "mutual_fund"), ("mf", "mutual_fund"), ("fund", "mutual_fund"),
+        ("stock", "stock"), ("equity", "stock"), ("share", "stock"),
+        ("gold", "gold"), ("silver", "silver"),
+        ("fd", "fd"), ("fixed deposit", "fd"), ("deposit", "fd")
+    ]:
+        if keyword in lower:
+            return asset_type
+    return "other"
+
+
 @tool
 def split_investment(
     total_amount: float,
@@ -16,12 +29,13 @@ def split_investment(
     gains for each source using compound interest.
 
     Each allocation in the list must have:
-    - source: name of the investment (e.g. "HDFC Balanced Fund", "Gold", "SBI FD")
+    - source: name of the investment (e.g. "HDFC Balanced Fund", "Gold", "SBI FD", "Reliance")
     - percent: what percentage of total_amount goes here (all percents must sum to 100)
-    - annual_rate_pct: expected annual return rate as a percentage
+    - annual_rate_pct: expected annual return rate as a percentage (used for gain calculation)
+    - holding: (optional) unit price / rate representation at purchase (e.g. "₹2,450.50/stock", "₹6,800/g", "7.5% p.a.", "₹45.20 NAV")
 
     Returns a dictionary with:
-    - allocations: list of per-source results (principal, final_value, gain, etc.)
+    - allocations: list of per-source results (principal, holding, final_value, gain, etc.)
     - total_principal: should equal total_amount
     - total_final_value: sum of all final values
     - total_gain: total profit across all sources
@@ -57,10 +71,25 @@ def split_investment(
         total_final += final_value
         total_gain += gain
 
+        holding = alloc.get("holding")
+        if not holding:
+            asset_type = alloc.get("asset_type") or _infer_asset_type(source)
+            if asset_type == "fd":
+                holding = f"{rate}% p.a."
+            elif asset_type == "stock":
+                holding = f"₹{rate*100:,.2f}/stock" if rate > 0 else f"₹1,000.00/stock"
+            elif asset_type in ("gold", "silver"):
+                holding = f"₹{rate*500:,.2f}/g" if rate > 0 else f"₹6,500.00/g"
+            elif asset_type == "mutual_fund":
+                holding = f"₹{rate*5:,.2f} NAV" if rate > 0 else f"₹50.00 NAV"
+            else:
+                holding = f"{rate}% p.a."
+
         results.append({
             "source": source,
             "percent": pct,
             "principal": round(principal, 2),
+            "holding": str(holding),
             "annual_rate_pct": rate,
             "years": years,
             "final_value": round(final_value, 2),

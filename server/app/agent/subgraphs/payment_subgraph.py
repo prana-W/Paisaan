@@ -167,6 +167,7 @@ def execute_investment_node(state: dict) -> dict:
         for alloc in allocations:
             source = alloc["source"]
             asset_type = _infer_asset_type(source)
+            holding = alloc.get("holding") or f"{alloc.get('annual_rate_pct', 0)}% p.a."
             create_investment(
                 db=db,
                 user_id=user.id,
@@ -174,11 +175,12 @@ def execute_investment_node(state: dict) -> dict:
                 source=source,
                 asset_type=asset_type,
                 principal=alloc["principal"],
-                annual_rate_pct=alloc["annual_rate_pct"],
+                holding=holding,
+                annual_rate_pct=alloc.get("annual_rate_pct", 0.0),
                 years=alloc.get("years", years),
-                notes=f"AI-planned investment via session {thread_id}",
+                notes=f"Session {thread_id}",
             )
-            logger.info("Investment created: %s ₹%.2f @ %.1f%%", source, alloc["principal"], alloc["annual_rate_pct"])
+            logger.info("Investment created: %s ₹%.2f holding=%s", source, alloc["principal"], holding)
 
         # Deduct from wallet
         new_balance = deduct_from_wallet(db, total_principal)

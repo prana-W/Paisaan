@@ -295,6 +295,7 @@ def get_investments_endpoint(db: DBSession = Depends(get_db)):
             "source": inv.source,
             "asset_type": inv.asset_type,
             "principal": inv.principal,
+            "holding": inv.holding,
             "annual_rate_pct": inv.annual_rate_pct,
             "years": inv.years,
             "current_value": current_value,

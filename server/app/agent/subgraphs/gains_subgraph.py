@@ -79,14 +79,17 @@ def gains_planner_node(state: dict) -> dict:
         "1. Based on the market research data, user's risk tolerance, and preferences, "
         "decide how to split the total investable amount across different investment sources "
         "(stocks, mutual funds, gold/silver, FDs, etc.).\n"
-        "2. For each source, determine a realistic annual return rate based on the market "
-        "research data. Use actual data from the research — don't make up rates.\n"
-        "3. The allocation percentages MUST sum to exactly 100.\n"
-        f"4. Call the split_investment tool with total_amount={investable}, years={years}, "
+        "2. For each source, determine a realistic annual return rate (`annual_rate_pct`) based on the market research.\n"
+        "3. For each source, also specify the `holding` representation based on asset class:\n"
+        "   - FD: interest rate string, e.g. '7.5% p.a.'\n"
+        "   - Stock: buy price per stock from market research, e.g. '₹2,450.50/stock'\n"
+        "   - Gold/Silver: price per gram from market research, e.g. '₹6,800/g' or '₹75/g'\n"
+        "   - Mutual Fund: NAV price per unit, e.g. '₹45.20 NAV'\n"
+        "4. The allocation percentages MUST sum to exactly 100.\n"
+        f"5. Call the split_investment tool with total_amount={investable}, years={years}, "
         "and your chosen allocations.\n"
-        "5. After receiving the tool result, DO NOT call the tool again. Instead, provide "
-        "a clear, conversational summary of the projected gains.\n"
-        "6. Include specific sources with realistic expected returns based on the market data."
+        "6. After receiving the tool result, DO NOT call the tool again. Instead, provide "
+        "a clear, conversational summary of the projected gains."
     )
 
     llm_with_tools = _get_llm().bind_tools(tools)
@@ -139,7 +142,8 @@ def store_plan_node(state: dict) -> dict:
         GainProjection(
             source=alloc["source"],
             principal=alloc["principal"],
-            annual_rate_pct=alloc["annual_rate_pct"],
+            holding=alloc.get("holding") or f"{alloc.get('annual_rate_pct', 0)}% p.a.",
+            annual_rate_pct=alloc.get("annual_rate_pct", 0.0),
             years=alloc["years"],
             final_value=alloc["final_value"],
             total_gain=alloc["total_gain"],

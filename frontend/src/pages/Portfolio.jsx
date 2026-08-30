@@ -260,7 +260,7 @@ function InvestmentsTable({ investments, loading }) {
                 <table className="w-full text-sm">
                     <thead>
                         <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
-                            {['Source', 'Type', 'Invested', 'Rate', 'Years', 'Current Value', 'Gain', 'Bought'].map(h => (
+                            {['Source', 'Type', 'Invested', 'Holding', 'Years', 'Current Value', 'Gain', 'Bought'].map(h => (
                                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider"
                                     style={{ color: 'var(--muted-foreground)' }}>
                                     {h}
@@ -305,9 +305,9 @@ function InvestmentsTable({ investments, loading }) {
                                         {fmt(inv.principal)}
                                     </td>
 
-                                    {/* Rate */}
-                                    <td className="px-4 py-3.5 font-mono text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                                        {inv.annual_rate_pct}%
+                                    {/* Holding */}
+                                    <td className="px-4 py-3.5 font-mono text-xs font-medium" style={{ color: 'var(--foreground)' }}>
+                                        {inv.holding || `${inv.annual_rate_pct}% p.a.`}
                                     </td>
 
                                     {/* Years */}
