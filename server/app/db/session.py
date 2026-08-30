@@ -7,7 +7,7 @@ settings = get_settings()
 
 engine = create_engine(
     settings.database_url,
-    echo=settings.is_dev,  # Log SQL in dev
+    echo=False,  # Keep DB SQL query logs off
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

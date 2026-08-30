@@ -4,22 +4,40 @@ from app.core.config import get_settings
 
 
 def setup_logging() -> None:
-    """Configure application-wide logging."""
-    settings = get_settings()
-
-    log_level = logging.DEBUG if settings.is_dev else logging.INFO
-
+    """Configure application-wide logging with minimal, clean log output."""
     logging.basicConfig(
-        level=log_level,
+        level=logging.INFO,
         format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
         datefmt="%Y-%m-%dT%H:%M:%S",
         stream=sys.stdout,
     )
 
-    # Quieten noisy libraries
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    # Quieten noisy third-party libraries and DB engine
+    noisy_loggers = [
+        "httpx",
+        "httpcore",
+        "urllib3",
+        "uvicorn.access",
+        "uvicorn.error",
+        "sqlalchemy",
+        "sqlalchemy.engine",
+        "sqlalchemy.pool",
+        "sqlalchemy.orm",
+        "langchain",
+        "langchain_core",
+        "langchain_google_genai",
+        "langgraph",
+        "google",
+        "google.api_core",
+        "google.genai",
+        "duckduckgo_search",
+        "yfinance",
+        "psycopg",
+        "psycopg_pool",
+    ]
+
+    for logger_name in noisy_loggers:
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
 
 
 def get_logger(name: str) -> logging.Logger:

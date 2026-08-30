@@ -179,9 +179,11 @@ def create_new_session(body: CreateSessionRequest, db: DBSession = Depends(get_d
         "investment_plan": {},
         "research_consent": None,
         "gains_consent": None,
+        "payment_consent": None,
         "draft_allocation": [],
         "confirmed": False,
         "transaction_id": None,
+        "investment_executed": False,
         "research_messages": [],
         "gains_messages": [],
     }
@@ -210,6 +212,23 @@ def resume_session(session_id: str, body: ResumeRequest, db: DBSession = Depends
     return _resume_session(session_id, body.answer, db)
 
 
+def _coerce_content(content) -> str:
+    """Normalize LangChain/Gemini message content to a plain string.
+    Gemini can return content as a list of blocks: [{'type': 'text', 'text': '...'}]
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                parts.append(block.get("text", ""))
+        return "".join(parts)
+    return str(content)
+
+
 def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeResponse:
     graph = get_graph()
     session = get_session(db, session_id)
@@ -224,10 +243,10 @@ def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeRespon
 
     if payload:
         # Graph paused on an interrupt — return the interrupt question
-        message = payload.get("text") if isinstance(payload, dict) else str(payload)
+        raw_text = payload.get("text") if isinstance(payload, dict) else payload
+        message = _coerce_content(raw_text)
     else:
         # Graph ran to completion — return the last assistant message from state
-        # (e.g. the market research summary written by compiler_node)
         messages = state.values.get("messages", [])
         last_ai = next(
             (m for m in reversed(messages) if (
@@ -237,7 +256,8 @@ def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeRespon
             None,
         )
         if last_ai:
-            message = last_ai.get("content") if isinstance(last_ai, dict) else last_ai.content
+            raw = last_ai.get("content") if isinstance(last_ai, dict) else last_ai.content
+            message = _coerce_content(raw)
         else:
             market = state.values.get("market", {})
             message = (

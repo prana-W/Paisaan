@@ -84,7 +84,7 @@ def ask_research_consent_node(state: dict) -> dict:
 
 def parse_research_consent_node(state: dict) -> dict:
     messages = state.get("messages", [])
-    user_answer = messages[-1]["content"] if messages else ""
+    user_answer = _extract_content(messages[-1]) if messages else ""
     return {**state, "research_consent": _parse_user_consent(user_answer)}
 
 
@@ -100,7 +100,7 @@ def _check_research_consent(state: dict) -> str:
 def ask_gains_consent_node(state: dict) -> dict:
     messages = list(state.get("messages", []))
     market = state.get("market", {})
-    
+
     summary = (
         market.get("research_summary") if isinstance(market, dict)
         else getattr(market, "research_summary", None)
@@ -125,8 +125,8 @@ def ask_gains_consent_node(state: dict) -> dict:
 
 
 def parse_gains_consent_node(state: dict) -> dict:
-    messages = state.get("messages", [])
-    user_answer = messages[-1]["content"] if messages else ""
+    messages = state.get("messages", [])[:]
+    user_answer = _extract_content(messages[-1]) if messages else ""
     return {**state, "gains_consent": _parse_user_consent(user_answer)}
 
 
@@ -136,11 +136,149 @@ def _check_gains_consent(state: dict) -> str:
     return END
 
 
+# ── Payment consent (after gains subgraph stores the plan) ───────────────────
+
+def _build_plan_markdown(investment_plan: dict) -> str:
+    """Build a rich markdown representation of the stored investment plan."""
+    if not investment_plan or not investment_plan.get("allocations"):
+        return "_No investment plan available._"
+
+    lines = [
+        "## 📊 Your Investment Plan\n",
+        f"**Total Investment:** ₹{investment_plan['total_principal']:,.2f}",
+        f"**Investment Duration:** {investment_plan['years']} years",
+        f"**Projected Final Value:** ₹{investment_plan['total_final_value']:,.2f}",
+        f"**Total Projected Gain:** ₹{investment_plan['total_gain']:,.2f}\n",
+        "### Allocation Breakdown\n",
+        "| Source | Investment (₹) | Annual Rate | Final Value (₹) | Gain (₹) |",
+        "|--------|---------------|-------------|-----------------|----------|",
+    ]
+
+    for alloc in investment_plan["allocations"]:
+        lines.append(
+            f"| {alloc['source']} "
+            f"| {alloc['principal']:,.2f} "
+            f"| {alloc['annual_rate_pct']}% "
+            f"| {alloc['final_value']:,.2f} "
+            f"| {alloc['total_gain']:,.2f} |"
+        )
+
+    return "\n".join(lines)
+
+
+def show_plan_and_ask_payment_consent_node(state: dict) -> dict:
+    """
+    Displays the investment plan (stored in state by gains_subgraph) and
+    asks the user for consent to proceed with the actual purchase.
+    Single interrupt — plan + question in one message.
+    """
+    messages = list(state.get("messages", []))
+    investment_plan = state.get("investment_plan", {})
+
+    # Handle both dict and Pydantic object
+    if hasattr(investment_plan, "model_dump"):
+        investment_plan = investment_plan.model_dump()
+
+    plan_md = _build_plan_markdown(investment_plan)
+
+    question = (
+        f"{plan_md}\n\n"
+        "---\n"
+        "**I'm ready to execute this investment plan on your behalf using your wallet balance.**\n\n"
+        "Shall I go ahead and make these investments? "
+        "*(Your wallet will be debited by ₹"
+        f"{investment_plan.get('total_principal', 0):,.2f})*"
+    )
+
+    answer = interrupt({"type": "question", "text": question})
+
+    return {
+        **state,
+        "messages": messages + [
+            {"role": "assistant", "content": question},
+            {"role": "user", "content": str(answer)},
+        ],
+    }
+
+
+def parse_payment_consent_node(state: dict) -> dict:
+    messages = state.get("messages", [])
+    user_answer = _extract_content(messages[-1]) if messages else ""
+    return {**state, "payment_consent": _parse_user_consent(user_answer)}
+
+
+def _check_payment_consent(state: dict) -> str:
+    if state.get("payment_consent") is True:
+        return "payment_subgraph"
+    return "conclusion_node"
+
+
+# ── Conclusion node (final message after investment OR after declined consent) ─
+
+def conclusion_node(state: dict) -> dict:
+    """Sends the final message to the user and ends the workflow."""
+    messages = list(state.get("messages", []))
+    investment_executed = state.get("investment_executed", False)
+    investment_plan = state.get("investment_plan", {})
+
+    if hasattr(investment_plan, "model_dump"):
+        investment_plan = investment_plan.model_dump()
+
+    if investment_executed and investment_plan.get("allocations"):
+        # Build success message
+        lines = [
+            "## ✅ Investments Successfully Made!\n",
+            "Your investment plan has been executed. Here's what was purchased:\n",
+        ]
+        for alloc in investment_plan["allocations"]:
+            lines.append(f"- **{alloc['source']}** — ₹{alloc['principal']:,.2f} @ {alloc['annual_rate_pct']}% p.a.")
+        lines.extend([
+            f"\n**Total Invested:** ₹{investment_plan['total_principal']:,.2f}",
+            f"**Projected Value in {investment_plan['years']} years:** ₹{investment_plan['total_final_value']:,.2f}",
+            f"**Projected Gain:** ₹{investment_plan['total_gain']:,.2f}\n",
+            "You can track all your investments in the **Portfolio** tab. "
+            "Your wallet has been debited accordingly. 🎉",
+        ])
+        final_msg = "\n".join(lines)
+    else:
+        # User declined payment
+        final_msg = (
+            "No problem! Your investment plan has been saved for reference but no funds have been moved. "
+            "Whenever you're ready to invest, feel free to start a new session. "
+            "Your wallet balance remains unchanged. 😊"
+        )
+
+    messages.append({"role": "assistant", "content": final_msg})
+    return {**state, "messages": messages}
+
+
+from typing import TypedDict, Annotated, Any
+from langgraph.graph.message import add_messages
+
+class MainState(TypedDict, total=False):
+    thread_id: str
+    profile: Any
+    market: Any
+    investment_plan: Any
+    research_consent: bool | None
+    gains_consent: bool | None
+    payment_consent: bool | None
+    draft_allocation: list
+    confirmed: bool
+    transaction_id: str | None
+    investment_executed: bool
+    messages: Annotated[list, add_messages]
+    research_messages: Annotated[list, add_messages]
+    gains_messages: Annotated[list, add_messages]
+
+
 # ── Graph builder ───────────────────────────────────────────────────────────
 
 
 def build_graph(checkpointer):
-    builder = StateGraph(dict)
+    from app.agent.subgraphs.payment_subgraph import build_payment_subgraph
+
+    builder = StateGraph(MainState)
 
     # Nodes
     builder.add_node("intake_subgraph", build_intake_subgraph())
@@ -150,6 +288,10 @@ def build_graph(checkpointer):
     builder.add_node("ask_gains_consent", ask_gains_consent_node)
     builder.add_node("parse_gains_consent", parse_gains_consent_node)
     builder.add_node("gains_subgraph", build_gains_subgraph())
+    builder.add_node("show_plan_and_ask_payment_consent", show_plan_and_ask_payment_consent_node)
+    builder.add_node("parse_payment_consent", parse_payment_consent_node)
+    builder.add_node("payment_subgraph", build_payment_subgraph())
+    builder.add_node("conclusion_node", conclusion_node)
 
     # Wiring
     builder.add_edge(START, "intake_subgraph")
@@ -169,11 +311,23 @@ def build_graph(checkpointer):
         END: END,
     })
 
-    builder.add_edge("gains_subgraph", END)
+    builder.add_edge("gains_subgraph", "show_plan_and_ask_payment_consent")
+    builder.add_edge("show_plan_and_ask_payment_consent", "parse_payment_consent")
+
+    builder.add_conditional_edges("parse_payment_consent", _check_payment_consent, {
+        "payment_subgraph": "payment_subgraph",
+        "conclusion_node": "conclusion_node",
+    })
+
+    builder.add_edge("payment_subgraph", "conclusion_node")
+    builder.add_edge("conclusion_node", END)
 
     compiled = builder.compile(checkpointer=checkpointer)
-    with open("paisaan_agent_mermaid.mmd", "w") as f:
-        f.write(compiled.get_graph(xray=True).draw_mermaid())
+    try:
+        with open("paisaan_agent_mermaid.mmd", "w") as f:
+            f.write(compiled.get_graph(xray=False).draw_mermaid())
+    except Exception as e:
+        logger.warning("Could not generate mermaid diagram: %s", e)
 
     logger.info("Graph compiled (%d nodes)", len(builder.nodes))
     return compiled

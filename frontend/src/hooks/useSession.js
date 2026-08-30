@@ -74,10 +74,16 @@ export function useSession() {
 
             const restored = (data.messages || []).map((m, i) => {
                 const role = m.role || (m.type === 'ai' ? 'assistant' : m.type === 'human' ? 'user' : m.type);
+                // Gemini can return content as a list of blocks: [{type:'text', text:'...'}]
+                // Normalize to a plain string so React components don't choke.
+                const rawContent = m.content;
+                const content = Array.isArray(rawContent)
+                    ? rawContent.map(b => (typeof b === 'string' ? b : (b?.text ?? ''))).join('')
+                    : (rawContent ?? '');
                 return {
                     id: `restored-${i}`,
                     role: role,
-                    content: m.content,
+                    content: String(content),
                 };
             });
 
