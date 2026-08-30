@@ -45,18 +45,18 @@ docker run --name paisaan-db -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=post
 ```
 
 ### 2. Backend Server (Port 9000)
-Navigate to the `server` directory, configure your environment, and start the FastAPI server:
+Navigate to the `server` directory, sync dependencies using `uv` (which reads `pyproject.toml`), and start the FastAPI server:
 ```bash
 cd server
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+
+# Install dependencies and create virtual environment automatically via uv
+uv sync
 
 # Ensure your .env is configured with your database URL and Google API key
 # Example: DATABASE_URL=postgresql://postgres:postgres@localhost:5432/paisaan
 
-# Start the server on port 9000
-uvicorn app.main:app --reload --port 9000
+# Start the server on port 9000 using uv
+uv run uvicorn app.main:app --reload --port 9000
 ```
 
 ### 3. Frontend (Port 5280)
@@ -69,7 +69,7 @@ npm install
 # VITE_API_URL=http://localhost:9000/api/v1
 # VITE_PORT=5280
 
-npm run dev -- --port 5280
+npm run dev
 ```
 
 ## 📖 Development Log
