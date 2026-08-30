@@ -19,7 +19,7 @@ graph TD;
 	parse_gains_consent -.-> gains_subgraph\3a__start__;
 	parse_research_consent -.-> __end__;
 	parse_research_consent -.-> market_subgraph\3a__start__;
-	gains_subgraph\3ashow_gains --> __end__;
+	gains_subgraph\3astore_plan --> __end__;
 	subgraph intake_subgraph
 	intake_subgraph\3a__start__(<p>__start__</p>)
 	intake_subgraph\3aintake(intake)
@@ -42,9 +42,9 @@ graph TD;
 	gains_subgraph\3a__start__(<p>__start__</p>)
 	gains_subgraph\3agains_planner(gains_planner)
 	gains_subgraph\3atools(tools)
-	gains_subgraph\3ashow_gains(show_gains)
+	gains_subgraph\3astore_plan(store_plan)
 	gains_subgraph\3a__start__ --> gains_subgraph\3agains_planner;
-	gains_subgraph\3agains_planner -.-> gains_subgraph\3ashow_gains;
+	gains_subgraph\3agains_planner -.-> gains_subgraph\3astore_plan;
 	gains_subgraph\3agains_planner -.-> gains_subgraph\3atools;
 	gains_subgraph\3atools --> gains_subgraph\3agains_planner;
 	end

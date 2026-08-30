@@ -75,9 +75,11 @@ class AgentState(BaseModel):
     investment_plan: InvestmentPlan = Field(default_factory=InvestmentPlan)
     research_consent: bool | None = None
     gains_consent: bool | None = None
+    payment_consent: bool | None = None
     draft_allocation: list[AllocationLine] = Field(default_factory=list)
     confirmed: bool = False
     transaction_id: str | None = None
+    investment_executed: bool = False
 
     # Chat message history (uses LangGraph's add_messages reducer)
     # Type annotation here is for documentation; the actual reducer is

@@ -8,6 +8,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 
 from app.agent.tools.calculator import split_investment
+from app.agent.state import InvestmentPlan, GainProjection
 
 logger = get_logger(__name__)
 
@@ -107,31 +108,16 @@ def should_continue(state: dict) -> str:
     last_message = gains_messages[-1]
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         return "tools"
-    return "show_gains"
+    return "store_plan"
 
 
-def _extract_content(msg) -> str:
-    content = msg.content if hasattr(msg, "content") else str(msg)
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = []
-        for block in content:
-            if isinstance(block, str):
-                parts.append(block)
-            elif isinstance(block, dict):
-                parts.append(block.get("text", ""))
-        return "".join(parts)
-    return str(content)
-
-
-def show_gains_node(state: dict) -> dict:
+def store_plan_node(state: dict) -> dict:
     """
-    Extracts the detailed gains results from gains_messages (tool call results + LLM summary)
-    and adds a comprehensive message to the chat for the frontend.
+    Parses the split_investment tool result from gains_messages and stores it
+    as a structured InvestmentPlan in state. Does NOT add any chat messages —
+    the main graph's consent node will display the plan.
     """
     gains_messages = state.get("gains_messages", [])
-    messages = list(state.get("messages", []))
 
     tool_result = None
     for msg in gains_messages:
@@ -145,45 +131,37 @@ def show_gains_node(state: dict) -> dict:
             except (json.JSONDecodeError, TypeError):
                 pass
 
-    llm_summary = ""
-    for msg in reversed(gains_messages):
-        if hasattr(msg, "type") and msg.type == "ai":
-            if not (hasattr(msg, "tool_calls") and msg.tool_calls):
-                llm_summary = _extract_content(msg)
-                break
+    if not tool_result or "allocations" not in tool_result:
+        logger.warning("store_plan_node: no valid tool result found in gains_messages")
+        return {}
 
-    parts = []
+    allocations = [
+        GainProjection(
+            source=alloc["source"],
+            principal=alloc["principal"],
+            annual_rate_pct=alloc["annual_rate_pct"],
+            years=alloc["years"],
+            final_value=alloc["final_value"],
+            total_gain=alloc["total_gain"],
+        )
+        for alloc in tool_result["allocations"]
+    ]
 
-    if tool_result and "allocations" in tool_result:
-        parts.append("## 📊 Your Investment Plan\n")
-        parts.append(f"**Total Investment:** ₹{tool_result['total_principal']:,.2f}")
-        parts.append(f"**Investment Duration:** {tool_result['years']} years")
-        parts.append(f"**Projected Final Value:** ₹{tool_result['total_final_value']:,.2f}")
-        parts.append(f"**Total Projected Gain:** ₹{tool_result['total_gain']:,.2f} "
-                      f"({tool_result.get('total_gain_pct', 0):.1f}%)\n")
+    plan = InvestmentPlan(
+        allocations=allocations,
+        total_principal=tool_result["total_principal"],
+        total_final_value=tool_result["total_final_value"],
+        total_gain=tool_result["total_gain"],
+        years=tool_result["years"],
+        summary=None,  # will be filled by consent node from gains_messages LLM text
+    )
 
-        parts.append("### Allocation Breakdown\n")
-        parts.append("| Source | Investment (₹) | Annual Rate | Final Value (₹) | Gain (₹) | Gain % |")
-        parts.append("|--------|---------------|-------------|-----------------|----------|--------|")
-        for alloc in tool_result["allocations"]:
-            parts.append(
-                f"| {alloc['source']} "
-                f"| {alloc['principal']:,.2f} "
-                f"| {alloc['annual_rate_pct']}% "
-                f"| {alloc['final_value']:,.2f} "
-                f"| {alloc['total_gain']:,.2f} "
-                f"| {alloc['gain_pct']}% |"
-            )
-        parts.append("")
+    logger.info(
+        "Investment plan stored: ₹%.2f across %d allocations, %d years",
+        plan.total_principal, len(allocations), plan.years,
+    )
 
-    if llm_summary:
-        parts.append("### Analysis\n")
-        parts.append(llm_summary)
-
-    detailed_message = "\n".join(parts) if parts else "Investment plan calculation complete."
-    messages.append({"role": "assistant", "content": detailed_message})
-
-    return {"messages": messages}
+    return {"investment_plan": plan.model_dump()}
 
 
 def build_gains_subgraph():
@@ -198,17 +176,16 @@ def build_gains_subgraph():
 
     builder.add_node("gains_planner", gains_planner_node)
     builder.add_node("tools", ToolNode(tools, messages_key="gains_messages"))
-    builder.add_node("show_gains", show_gains_node)
+    builder.add_node("store_plan", store_plan_node)
 
     builder.add_edge(START, "gains_planner")
     builder.add_conditional_edges("gains_planner", should_continue, {
         "tools": "tools",
-        "show_gains": "show_gains",
+        "store_plan": "store_plan",
     })
     builder.add_edge("tools", "gains_planner")
-    builder.add_edge("show_gains", END)
+    builder.add_edge("store_plan", END)
 
     compiled = builder.compile()
     logger.debug("Gains Subgraph compiled (%d nodes)", len(builder.nodes))
     return compiled
-
