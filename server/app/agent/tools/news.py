@@ -14,7 +14,9 @@ def search_market_news(query: str) -> List[Dict[str, str]]:
     Returns a list of news items (dictionaries containing title, source, body, url, date).
     """
     try:
-        results = DDGS().news(query, max_results=5)
+        trusted_sites = "site:moneycontrol.com OR site:economictimes.indiatimes.com OR site:livemint.com OR site:cnbctv18.com"
+        strict_query = f"{query} {trusted_sites}"
+        results = DDGS().news(strict_query, max_results=5, safesearch="strict")
         
         # Ensure we return a consistent format even if empty
         if not results:

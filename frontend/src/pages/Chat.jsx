@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useSession } from '@/hooks/useSession';
+import { useRazorpay } from '@/hooks/useRazorpay';
 import { getSessions, deleteSession } from '@/utils/api';
 import {
     Send, RotateCcw, TrendingUp, Loader2, AlertCircle,
@@ -248,7 +249,7 @@ function Landing({ onStart, error }) {
 
 export default function Chat() {
     const {
-        messages, threadId, userId, status, error, isLoading, isComplete,
+        messages, threadId, userId, profile, status, error, payload, isLoading, isComplete,
         startSession, loadSession, sendAnswer, resetSession,
     } = useSession();
 
@@ -274,6 +275,17 @@ export default function Chat() {
 
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
+    
+    const { processPayment, isProcessing: isProcessingPayment } = useRazorpay(userId, profile);
+    const [fundAmount, setFundAmount] = useState('');
+    const [showFundModal, setShowFundModal] = useState(false);
+    const [modalFundAmount, setModalFundAmount] = useState('10000');
+
+    useEffect(() => {
+        if (payload?.type === 'payment_required') {
+            setFundAmount((payload.shortfall || 10000).toString());
+        }
+    }, [payload]);
 
     const fetchSessions = async () => {
         try {
@@ -308,6 +320,9 @@ export default function Chat() {
         window.addEventListener('toggle-sidebar', handleToggle);
         return () => window.removeEventListener('toggle-sidebar', handleToggle);
     }, []);
+
+
+    // Removed broken auto-payment useEffect
 
     const handleStart = (customId) => {
         setSessionStarted(true);
@@ -477,8 +492,63 @@ export default function Chat() {
                         <Landing onStart={handleStart} error={error} />
                     ) : (
                         <>
+                            {/* Chat Header Tools */}
+                            <div className="flex justify-end px-6 py-2 border-b border-[var(--border)]">
+                                <button 
+                                    onClick={() => setShowFundModal(true)}
+                                    className="flex items-center gap-2 bg-[var(--primary)] text-[var(--primary-foreground)] px-3 py-1.5 rounded-lg text-xs font-semibold hover:opacity-95 transition-all"
+                                >
+                                    <Plus size={14} />
+                                    Add Money
+                                </button>
+                            </div>
+
                             {/* Message Log */}
-                            <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 min-h-0">
+                            <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 min-h-0 relative">
+                                {showFundModal && (
+                                    <div className="absolute top-4 right-4 z-50 glass rounded-2xl p-6 border border-[var(--primary)]/20 shadow-lg animate-bubble-in w-72">
+                                        <button 
+                                            onClick={() => setShowFundModal(false)}
+                                            className="absolute top-4 right-4 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                        <h3 className="text-lg font-bold mb-1">Fund Wallet</h3>
+                                        <p className="text-xs text-[var(--muted-foreground)] mb-4">Add mock funds to your Paisaan virtual wallet.</p>
+                                        
+                                        <div className="flex items-center gap-2 text-2xl font-bold border-b border-[var(--border)] focus-within:border-[var(--primary)] pb-2 mb-6">
+                                            <span>₹</span>
+                                            <input 
+                                                type="number" 
+                                                value={modalFundAmount}
+                                                onChange={(e) => setModalFundAmount(e.target.value)}
+                                                className="bg-transparent outline-none flex-1 w-full"
+                                                autoFocus
+                                            />
+                                        </div>
+                                        <button 
+                                            onClick={async () => {
+                                                const amt = parseFloat(modalFundAmount);
+                                                if (isNaN(amt) || amt <= 0) {
+                                                    showNotification("Please enter a valid amount", "error");
+                                                    return;
+                                                }
+                                                try {
+                                                    await processPayment(amt);
+                                                    showNotification('Wallet funded successfully!', 'success');
+                                                    setShowFundModal(false);
+                                                } catch(err) {
+                                                    if (err.message) showNotification(err.message, 'error');
+                                                }
+                                            }}
+                                            disabled={isProcessingPayment}
+                                            className="w-full bg-[#3399cc] text-white py-2.5 rounded-xl text-sm font-semibold hover:opacity-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            {isProcessingPayment ? 'Processing...' : 'Pay via Razorpay'}
+                                        </button>
+                                    </div>
+                                )}
+
                                 <div className="max-w-3xl mx-auto space-y-6 w-full">
                                     {messages.length === 0 && isLoading && (
                                         <div className="flex justify-center items-center h-32">
@@ -489,6 +559,57 @@ export default function Chat() {
                                     {messages.map(msg => <ChatBubble key={msg.id} message={msg} />)}
 
                                     {isLoading && messages.length > 0 && <TypingIndicator />}
+
+                                    {payload?.type === 'payment_required' && !isProcessingPayment && (
+                                        <div className="flex flex-col items-center gap-3 py-6 animate-bubble-in">
+                                            <div className="p-5 bg-[var(--card)] border border-[var(--border)] rounded-2xl text-center space-y-4 max-w-sm w-full shadow-lg">
+                                                <div className="space-y-1">
+                                                    <div className="text-sm font-medium text-[var(--muted-foreground)]">Funding Required</div>
+                                                    <p className="text-xs text-[var(--muted-foreground)] mt-2">Your wallet is short by ₹{(payload.shortfall || 10000).toLocaleString('en-IN')}. Please add funds to proceed.</p>
+                                                    <div className="mt-4 flex items-center justify-center gap-1 text-3xl font-bold text-[var(--foreground)]">
+                                                        <span>₹</span>
+                                                        <input 
+                                                            type="number" 
+                                                            value={fundAmount}
+                                                            onChange={(e) => setFundAmount(e.target.value)}
+                                                            className="w-32 bg-transparent border-b border-[var(--border)] focus:border-[var(--primary)] outline-none text-center"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-3 mt-4">
+                                                    <button 
+                                                        onClick={() => {
+                                                            showNotification('Payment declined', 'error');
+                                                            sendAnswer('failed');
+                                                        }}
+                                                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-[var(--surface-2)] active:scale-[0.98] border border-[var(--border)] text-[var(--foreground)]"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button 
+                                                        onClick={async () => {
+                                                            const amt = parseFloat(fundAmount);
+                                                            if (isNaN(amt) || amt <= 0) {
+                                                                showNotification("Please enter a valid amount", "error");
+                                                                return;
+                                                            }
+                                                            try {
+                                                                const txnId = await processPayment(amt);
+                                                                showNotification('Wallet funded successfully!', 'success');
+                                                                sendAnswer(`Payment of ₹${amt.toLocaleString('en-IN')} made successfully. Transaction ID: ${txnId}`);
+                                                            } catch(err) {
+                                                                if (err.message) showNotification(err.message, 'error');
+                                                                sendAnswer('failed');
+                                                            }
+                                                        }}
+                                                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-95 active:scale-[0.98] bg-[#3399cc] text-white"
+                                                    >
+                                                        Pay via Razorpay
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {error && (
                                         <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm animate-bubble-in bg-destructive/10 text-destructive">

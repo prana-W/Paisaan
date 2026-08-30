@@ -13,11 +13,27 @@ class User(Base):
 
     id = Column(String, primary_key=True)          # UUID
     name = Column(String, nullable=True)
+    wallet_balance = Column(Float, default=0.0, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     sessions = relationship("Session", back_populates="user")
     investments = relationship("Investment", back_populates="user")
     transactions = relationship("Transaction", back_populates="user")
+    payment_orders = relationship("PaymentOrder", back_populates="user")
+
+
+class PaymentOrder(Base):
+    """Tracks Razorpay orders and mock funding"""
+    __tablename__ = "payment_orders"
+
+    id = Column(String, primary_key=True)           # UUID
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    razorpay_order_id = Column(String, nullable=True)
+    amount = Column(Float, nullable=False)          # Amount in INR
+    status = Column(String, default="created")      # created | success | failed
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="payment_orders")
 
 
 class Session(Base):
@@ -83,8 +99,9 @@ class Transaction(Base):
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     action = Column(String, nullable=False)         # buy | sell | wallet_topup | failed
     amount = Column(Float, nullable=False)
+    percent_allocation = Column(Float, nullable=True)
     status = Column(String, nullable=False)         # success | failed | pending
-    reasoning = Column(Text, nullable=False)        # mandatory — ties to planner reasoning
+    reasoning = Column(Text, nullable=False)        # tied to planner reasoning
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="transactions")

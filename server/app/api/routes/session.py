@@ -173,6 +173,7 @@ def create_new_session(body: CreateSessionRequest, db: DBSession = Depends(get_d
 
     initial_state = {
         "thread_id": thread_id,
+        "user_id": user.id,
         "messages": [],
         "profile": {},
         "market": {},
@@ -230,6 +231,9 @@ def _coerce_content(content) -> str:
 
 
 def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeResponse:
+    import json
+    import uuid
+    from app.db.models import Transaction
     graph = get_graph()
     session = get_session(db, session_id)
     if not session:
@@ -240,6 +244,8 @@ def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeRespon
     from langgraph.types import Command
     status, payload, state = _stream_until_interrupt(graph, session_id, Command(resume=answer))
     update_session_status(db, session_id, status)
+
+    # Database logging for transactions has been moved to the execute_investment_node inside the graph.
 
     if payload:
         # Graph paused on an interrupt — return the interrupt question
@@ -259,11 +265,11 @@ def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeRespon
             raw = last_ai.get("content") if isinstance(last_ai, dict) else last_ai.content
             message = _coerce_content(raw)
         else:
-            market = state.values.get("market", {})
-            message = (
-                market.get("research_summary") if isinstance(market, dict)
-                else getattr(market, "research_summary", None)
-            ) or "Research complete. ✅"
+            message = last_ai_content
+    elif interrupt_text:
+        message = interrupt_text
+    else:
+        message = last_ai_content
 
     return ResumeResponse(
         thread_id=session_id,

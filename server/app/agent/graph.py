@@ -3,6 +3,7 @@ from langgraph.graph import StateGraph, START, END
 from app.agent.subgraphs.intake_subgraph import build_intake_subgraph
 from app.agent.subgraphs.market_subgraph import build_market_subgraph
 from app.agent.subgraphs.gains_subgraph import build_gains_subgraph
+from app.agent.subgraphs.payment_subgraph import build_payment_subgraph
 from app.core.logging import get_logger
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -324,6 +325,12 @@ def build_graph(checkpointer):
     builder.add_edge("payment_subgraph", "conclusion_node")
     builder.add_edge("conclusion_node", END)
 
+    builder.add_conditional_edges("parse_execute_consent", _check_execute_consent, {
+        "payment_subgraph": "payment_subgraph",
+        END: END,
+    })
+
+    builder.add_edge("payment_subgraph", END)
     compiled = builder.compile(checkpointer=checkpointer)
     try:
         with open("paisaan_agent_mermaid.mmd", "w") as f:

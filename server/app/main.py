@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.routes import session, wallet
 from app.core.config import get_settings
 from app.core.logging import setup_logging, get_logger
 from app.db.session import init_db
