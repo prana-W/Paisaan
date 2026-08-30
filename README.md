@@ -10,20 +10,19 @@ Paisaan is an intelligent, multi-agent financial planning system built with Lang
 
 1. **Intake Profiling:** A conversational AI naturally asks you questions to build a profile of your financial goals, risk tolerance, and investable amount.
 2. **Live Market Research:** Based on your preferences, the agent dynamically fetches real-time data for Stocks, Mutual Funds, Bullion (Gold/Silver ETFs), FD Rates, and Market News.
-3. **Smart Allocation & Projections:** The agent acts as a financial planner, splitting your investment across various asset classes based on the fetched live data, and calculates projected returns using compound interest over your specified time horizon.
-4. **Human-in-the-Loop (HITL):** Paisaan features explicit consent checkpoints. It stops to ask for your permission before conducting market research and before finalizing your investment plan.
+3. **Smart Allocation & Projections:** The agent acts as a financial planner, splitting your investment across various asset classes based on the fetched live data, calculating projected returns over your specified horizon.
+4. **Human-in-the-Loop (HITL) & Payment Gating:** Paisaan features explicit consent checkpoints. It stops to ask for your permission before conducting market research, before finalizing your plan, and validates wallet funds before executing purchases.
+5. **Autonomous Execution & Virtual Portfolio:** Automatically debits your wallet, records investments with asset-specific holding metrics in PostgreSQL, and tracks portfolio performance over time.
 
 ## ✨ Current Features
 
-- **LangGraph Agent Architecture:** Complex workflows managed through nested subgraphs (Intake, Market Research, Gains Calculation).
+- **LangGraph Agent Architecture:** Complex workflows managed through nested subgraphs (Intake, Market Research, Gains Calculation, Payment Execution).
+- **Asset-Specific Holding Metrics:** Custom unit-based measurements per asset class (Stocks: per stock price, Gold/Silver: price per gram, Mutual Funds: NAV, FDs: interest rate).
+- **Autonomous Payment Gating:** Wallet balance validation with automatic conversational top-up prompts and seamless workflow resumption.
+- **Persistent Database Audit Trail:** PostgreSQL integration storing durable holdings and append-only transaction logs.
 - **Tool Ecosystem:** Integrated tools for DuckDuckGo news/search, Yahoo Finance (stocks/bullion), and `mfapi.in` (mutual funds).
-- **Dynamic Gain Calculation:** A unified calculation engine that strictly validates 100% portfolio allocation and projects multi-year compound interest.
-- **Beautiful UI:** A React/Vite frontend chatting directly with the LangGraph state machine.
-
-## 🔮 Upcoming Features
-
-- **Razorpay Test Integration:** Simulating the funding of the agent's virtual wallet.
-- **Virtual Portfolio:** A sandbox environment for testing the agent's ability to "manage" and track a simulated portfolio over time.
+- **Gemini Multi-Part Resiliency:** Robust content serialization and coercion preventing frontend Markdown rendering crashes.
+- **Interactive UI Dashboard:** A React/Vite frontend with chat interface and real-time Portfolio manager.
 
 ## 🏗️ Architecture
 

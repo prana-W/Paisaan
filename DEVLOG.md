@@ -1,5 +1,17 @@
 # Paisaan Development Log
 
+## August 31, 2026 — Payment Execution Subgraph, Serialization Coercion & Dynamic Holding Schema
+- **Payment Subgraph & Wallet Gating**: Integrated `payment_subgraph.py` to enforce strict wallet balance validation before investment execution. Added a non-blocking interruption flow that prompts users to top up directly in chat and seamlessly resumes upon funding.
+- **Persistent Database Holdings**: Connected AI investment execution directly to PostgreSQL, creating durable records across `investments` and append-only `transactions` audit log tables.
+- **Gemini Content Normalization**: Resolved LLM multi-part content block serialization issues across the LangGraph state machine, FastAPI backend (`session.py`), and React frontend (`useSession.js`, `Chat.jsx`). All message objects are strictly coerced to strings, eliminating React markdown rendering crashes.
+- **Asset-Specific `Holding` Metrics**: Upgraded `Investment` DB schema and investment planner tool (`split_investment`) to track customized `holding` metrics per asset class instead of generic interest rates:
+  - **Stocks**: Price per stock at purchase (e.g. `₹2,450.50/stock`)
+  - **Gold / Silver**: Live bullion price per gram from ETFs (e.g. `₹6,800/g`, `₹75/g`)
+  - **Mutual Funds**: NAV price per unit (e.g. `₹45.20 NAV`)
+  - **FDs**: Annual interest rate (e.g. `7.5% p.a.`)
+- **Portfolio UI Enhancements**: Updated `Portfolio.jsx` to render the new `Holding` column and dynamically compute live investment growth.
+- **Database Reset**: Performed Docker database volume reset to initialize clean PostgreSQL table schemas.
+
 ## August 25, 2026 — Phase 4: Gains Subgraph & Full Flow Integration
 - **State & Routing Updates**: Expanded `AgentState` with `gains_consent` and `gains_messages` to manage a second isolated LLM chat context for calculations.
 - **Calculator Tool**: Implemented `split_investment` as a strict allocation engine that calculates multi-source compound interest and ensures allocations sum to exactly 100%.
