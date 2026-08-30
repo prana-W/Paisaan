@@ -327,7 +327,7 @@ def build_graph(checkpointer):
     compiled = builder.compile(checkpointer=checkpointer)
     try:
         with open("paisaan_agent_mermaid.mmd", "w") as f:
-            f.write(compiled.get_graph(xray=False).draw_mermaid())
+            f.write(compiled.get_graph(xray=True).draw_mermaid())
     except Exception as e:
         logger.warning("Could not generate mermaid diagram: %s", e)
 

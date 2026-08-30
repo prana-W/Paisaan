@@ -5,33 +5,65 @@ config:
 ---
 graph TD;
 	__start__([<p>__start__</p>]):::first
-	intake_subgraph(intake_subgraph)
 	ask_research_consent(ask_research_consent)
 	parse_research_consent(parse_research_consent)
-	market_subgraph(market_subgraph)
 	ask_gains_consent(ask_gains_consent)
 	parse_gains_consent(parse_gains_consent)
-	gains_subgraph(gains_subgraph)
 	show_plan_and_ask_payment_consent(show_plan_and_ask_payment_consent)
 	parse_payment_consent(parse_payment_consent)
-	payment_subgraph(payment_subgraph)
 	conclusion_node(conclusion_node)
 	__end__([<p>__end__</p>]):::last
-	__start__ --> intake_subgraph;
+	__start__ --> intake_subgraph\3a__start__;
 	ask_gains_consent --> parse_gains_consent;
 	ask_research_consent --> parse_research_consent;
-	gains_subgraph --> show_plan_and_ask_payment_consent;
-	intake_subgraph --> ask_research_consent;
-	market_subgraph --> ask_gains_consent;
+	gains_subgraph\3astore_plan --> show_plan_and_ask_payment_consent;
+	intake_subgraph\3a__end__ --> ask_research_consent;
+	market_subgraph\3astore_research --> ask_gains_consent;
 	parse_gains_consent -.-> __end__;
-	parse_gains_consent -.-> gains_subgraph;
+	parse_gains_consent -.-> gains_subgraph\3a__start__;
 	parse_payment_consent -.-> conclusion_node;
-	parse_payment_consent -.-> payment_subgraph;
+	parse_payment_consent -.-> payment_subgraph\3a__start__;
 	parse_research_consent -.-> __end__;
-	parse_research_consent -.-> market_subgraph;
-	payment_subgraph --> conclusion_node;
+	parse_research_consent -.-> market_subgraph\3a__start__;
+	payment_subgraph\3aexecute_investment --> conclusion_node;
 	show_plan_and_ask_payment_consent --> parse_payment_consent;
 	conclusion_node --> __end__;
+	subgraph intake_subgraph
+	intake_subgraph\3a__start__(<p>__start__</p>)
+	intake_subgraph\3aintake(intake)
+	intake_subgraph\3a__end__(<p>__end__</p>)
+	intake_subgraph\3a__start__ --> intake_subgraph\3aintake;
+	intake_subgraph\3aintake -. &nbsp;done&nbsp; .-> intake_subgraph\3a__end__;
+	intake_subgraph\3aintake -. &nbsp;continue&nbsp; .-> intake_subgraph\3aintake;
+	end
+	subgraph market_subgraph
+	market_subgraph\3a__start__(<p>__start__</p>)
+	market_subgraph\3aresearcher(researcher)
+	market_subgraph\3atools(tools)
+	market_subgraph\3astore_research(store_research)
+	market_subgraph\3a__start__ --> market_subgraph\3aresearcher;
+	market_subgraph\3aresearcher -. &nbsp;__end__&nbsp; .-> market_subgraph\3astore_research;
+	market_subgraph\3aresearcher -.-> market_subgraph\3atools;
+	market_subgraph\3atools --> market_subgraph\3aresearcher;
+	end
+	subgraph gains_subgraph
+	gains_subgraph\3a__start__(<p>__start__</p>)
+	gains_subgraph\3agains_planner(gains_planner)
+	gains_subgraph\3atools(tools)
+	gains_subgraph\3astore_plan(store_plan)
+	gains_subgraph\3a__start__ --> gains_subgraph\3agains_planner;
+	gains_subgraph\3agains_planner -.-> gains_subgraph\3astore_plan;
+	gains_subgraph\3agains_planner -.-> gains_subgraph\3atools;
+	gains_subgraph\3atools --> gains_subgraph\3agains_planner;
+	end
+	subgraph payment_subgraph
+	payment_subgraph\3a__start__(<p>__start__</p>)
+	payment_subgraph\3averify_funds(verify_funds)
+	payment_subgraph\3aexecute_investment(execute_investment)
+	payment_subgraph\3a__start__ --> payment_subgraph\3averify_funds;
+	payment_subgraph\3averify_funds -.-> payment_subgraph\3aexecute_investment;
+	payment_subgraph\3averify_funds -.-> payment_subgraph\3averify_funds;
+	end
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0
 	classDef last fill:#bfb6fc
