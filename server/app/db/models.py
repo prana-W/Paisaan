@@ -16,7 +16,7 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     sessions = relationship("Session", back_populates="user")
-    holdings = relationship("Holding", back_populates="user")
+    investments = relationship("Investment", back_populates="user")
     transactions = relationship("Transaction", back_populates="user")
 
 
@@ -33,20 +33,45 @@ class Session(Base):
     user = relationship("User", back_populates="sessions")
 
 
-class Holding(Base):
-    """A mock asset 'purchased' by the agent for the user."""
-    __tablename__ = "holdings"
+class Wallet(Base):
+    """Single-row wallet — stores the global app wallet balance."""
+    __tablename__ = "wallet"
 
-    id = Column(String, primary_key=True)           # UUID
+    id = Column(Integer, primary_key=True, default=1)   # Always row id=1
+    balance = Column(Float, nullable=False, default=0.0)
+    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class Investment(Base):
+    """
+    A virtual investment purchased by the AI agent on the user's behalf.
+    Tracks principal, projected returns, and current accumulated value.
+    Persists across all sessions (thread_ids).
+    """
+    __tablename__ = "investments"
+
+    id = Column(String, primary_key=True)                   # UUID
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    thread_id = Column(String, nullable=False)      # which session bought this
-    asset_type = Column(String, nullable=False)     # equity | mutual_fund | gold | fd
-    symbol = Column(String, nullable=False)         # ticker / fund code / "GOLD" etc.
-    amount_invested = Column(Float, nullable=False) # ₹ amount (mock)
-    price_at_purchase = Column(Float, nullable=False)
-    purchased_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    thread_id = Column(String, nullable=False)              # session that made this investment
 
-    user = relationship("User", back_populates="holdings")
+    # What was bought
+    source = Column(String, nullable=False)                 # e.g. "HDFC Balanced Fund", "Gold", "Reliance"
+    asset_type = Column(String, nullable=False)             # mutual_fund | stock | gold | silver | fd | other
+
+    # Financial details
+    principal = Column(Float, nullable=False)               # ₹ amount invested at purchase
+    annual_rate_pct = Column(Float, nullable=False)         # expected annual return % used in projection
+    years = Column(Integer, nullable=False)                 # investment horizon in years
+
+    # Tracking
+    current_value = Column(Float, nullable=False)           # starts = principal; updated on refresh
+    last_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
+    bought_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Extra context
+    notes = Column(Text, nullable=True)                     # AI reasoning or extra context
+
+    user = relationship("User", back_populates="investments")
 
 
 class Transaction(Base):
@@ -55,7 +80,7 @@ class Transaction(Base):
 
     id = Column(String, primary_key=True)           # UUID
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    action = Column(String, nullable=False)         # buy | sell | failed
+    action = Column(String, nullable=False)         # buy | sell | wallet_topup | failed
     amount = Column(Float, nullable=False)
     status = Column(String, nullable=False)         # success | failed | pending
     reasoning = Column(Text, nullable=False)        # mandatory — ties to planner reasoning

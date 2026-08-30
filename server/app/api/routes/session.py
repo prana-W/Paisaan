@@ -5,7 +5,10 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.agent.graph import get_graph
 from app.db.session import get_db
-from app.db.crud import get_or_create_user, create_session, get_session, update_session_status, get_sessions, delete_session
+from app.db.crud import (
+    get_or_create_user, create_session, get_session, update_session_status,
+    get_sessions, delete_session, get_all_investments, get_wallet_balance,
+)
 from app.schemas.profile import (
     CreateSessionRequest, MessageRequest, ResumeRequest,
     SessionResponse, ResumeResponse, SessionStateResponse, SessionSummary, ToolCallInfo,
@@ -252,13 +255,59 @@ def _resume_session(session_id: str, answer: str, db: DBSession) -> ResumeRespon
 
 
 
-@router.get("/portfolio/{user_id}")
-def get_portfolio(user_id: str, db: DBSession = Depends(get_db)):
+@router.get("/portfolio/investments")
+def get_investments_endpoint(db: DBSession = Depends(get_db)):
+    """Return all investments with live-computed current value."""
+    from datetime import datetime
+    import math
+    investments = get_all_investments(db)
+    result = []
+    now = datetime.utcnow()
+    for inv in investments:
+        # Compound interest: P * (1 + r)^t  where t is years since purchase
+        years_elapsed = (now - inv.bought_at).days / 365.25
+        current_value = round(inv.principal * ((1 + inv.annual_rate_pct / 100) ** years_elapsed), 2)
+        gain = round(current_value - inv.principal, 2)
+        gain_pct = round((gain / inv.principal) * 100, 2) if inv.principal > 0 else 0.0
+        result.append({
+            "id": inv.id,
+            "thread_id": inv.thread_id,
+            "source": inv.source,
+            "asset_type": inv.asset_type,
+            "principal": inv.principal,
+            "annual_rate_pct": inv.annual_rate_pct,
+            "years": inv.years,
+            "current_value": current_value,
+            "gain": gain,
+            "gain_pct": gain_pct,
+            "bought_at": inv.bought_at.isoformat(),
+            "last_updated": inv.last_updated.isoformat(),
+            "notes": inv.notes,
+        })
+    return result
+
+
+@router.get("/portfolio/summary")
+def get_portfolio_summary(db: DBSession = Depends(get_db)):
+    """Return aggregate portfolio stats + wallet balance."""
+    from datetime import datetime
+    investments = get_all_investments(db)
+    now = datetime.utcnow()
+    total_invested = 0.0
+    total_current = 0.0
+    for inv in investments:
+        years_elapsed = (now - inv.bought_at).days / 365.25
+        current_value = inv.principal * ((1 + inv.annual_rate_pct / 100) ** years_elapsed)
+        total_invested += inv.principal
+        total_current += current_value
+    gain = round(total_current - total_invested, 2)
+    gain_pct = round((gain / total_invested) * 100, 2) if total_invested > 0 else 0.0
+    wallet_balance = get_wallet_balance(db)
     return {
-        "user_id": user_id,
-        "holdings": [],
-        "total_invested": 0,
-        "current_value": 0,
-        "gain_loss": 0,
-        "gain_loss_pct": 0,
+        "total_invested": round(total_invested, 2),
+        "current_value": round(total_current, 2),
+        "gain_loss": gain,
+        "gain_loss_pct": gain_pct,
+        "wallet_balance": wallet_balance,
+        "investment_count": len(investments),
     }

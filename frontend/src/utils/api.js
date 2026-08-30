@@ -61,8 +61,32 @@ export async function sendMessage(threadId, content) {
     });
 }
 
-export async function getPortfolio(userId) {
-    return request(`/portfolio/${userId}`);
+export async function getPortfolioSummary() {
+    return request('/portfolio/summary');
+}
+
+export async function getInvestments() {
+    return request('/portfolio/investments');
+}
+
+// ── Wallet ────────────────────────────────────────────────────────────────────
+
+export async function getWalletBalance() {
+    return request('/wallet/balance');
+}
+
+export async function createWalletOrder(amount) {
+    return request('/wallet/order', {
+        method: 'POST',
+        body: JSON.stringify({ amount }),
+    });
+}
+
+export async function verifyWalletPayment(payload) {
+    return request('/wallet/verify', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
 }
 
 export async function checkHealth() {
