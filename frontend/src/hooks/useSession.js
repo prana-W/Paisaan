@@ -16,7 +16,14 @@ export function useSession() {
     const loading = useRef(false);
 
     const addMessage = useCallback((role, content) => {
-        setMessages(prev => [...prev, { id: `${Date.now()}-${Math.random()}`, role, content }]);
+        const strContent = typeof content === 'string'
+            ? content
+            : Array.isArray(content)
+                ? content.map(b => (typeof b === 'string' ? b : (b?.text ?? ''))).join('')
+                : typeof content === 'object' && content !== null
+                    ? (content.text || JSON.stringify(content))
+                    : String(content ?? '');
+        setMessages(prev => [...prev, { id: `${Date.now()}-${Math.random()}`, role, content: strContent }]);
     }, []);
 
     const _persist = (tid, uid) => {
@@ -134,10 +141,19 @@ export function useSession() {
         try {
             const data = await resumeSession(threadId, text);
             if (data.message) {
+                const rawMsg = data.message;
+                const msgStr = typeof rawMsg === 'string'
+                    ? rawMsg
+                    : Array.isArray(rawMsg)
+                        ? rawMsg.map(b => (typeof b === 'string' ? b : (b?.text ?? ''))).join('')
+                        : typeof rawMsg === 'object' && rawMsg !== null
+                            ? (rawMsg.text || JSON.stringify(rawMsg))
+                            : String(rawMsg ?? '');
+
                 setMessages(prev => [...prev, {
                     id: `${Date.now()}-${Math.random()}`,
                     role: 'assistant',
-                    content: data.message,
+                    content: msgStr,
                     toolCalls: data.tool_calls || [],
                 }]);
             }

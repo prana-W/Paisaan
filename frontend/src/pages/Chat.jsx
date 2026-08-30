@@ -89,6 +89,15 @@ function ChatBubble({ message }) {
     const hasTools = isAssistant && message.toolCalls && message.toolCalls.length > 0;
     const [toolsExpanded, setToolsExpanded] = useState(false);
 
+    const rawContent = message.content;
+    const contentStr = typeof rawContent === 'string'
+        ? rawContent
+        : Array.isArray(rawContent)
+            ? rawContent.map(b => (typeof b === 'string' ? b : (b?.text ?? ''))).join('')
+            : typeof rawContent === 'object' && rawContent !== null
+                ? (rawContent.text || JSON.stringify(rawContent))
+                : String(rawContent ?? '');
+
     return (
         <div className={`flex items-start gap-4 animate-bubble-in ${isAssistant ? '' : 'flex-row-reverse'}`}>
             {isAssistant ? (
@@ -132,7 +141,7 @@ function ChatBubble({ message }) {
                 )}
 
                 {/* Main Message Content */}
-                {message.content && (
+                {contentStr && (
                     <div
                         className={`inline-block text-left text-sm leading-relaxed px-4 py-3 rounded-2xl max-w-[85%]`}
                         style={isAssistant
@@ -143,11 +152,11 @@ function ChatBubble({ message }) {
                         {isAssistant ? (
                             <div className="markdown-body">
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                    {message.content}
+                                    {contentStr}
                                 </ReactMarkdown>
                             </div>
                         ) : (
-                            message.content
+                            contentStr
                         )}
                     </div>
                 )}
